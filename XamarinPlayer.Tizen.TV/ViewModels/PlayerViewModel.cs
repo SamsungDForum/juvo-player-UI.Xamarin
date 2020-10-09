@@ -25,13 +25,14 @@ using System;
 using System.Collections.Generic;
 using System.Reactive.Disposables;
 using JuvoLogger;
-using JuvoPlayer;
-using JuvoPlayer.Common;
+
 using SkiaSharp;
+using UI.Common;
 using Xamarin.Forms;
 using XamarinPlayer.Tizen.TV.Models;
 using XamarinPlayer.Tizen.TV.Services;
 using XamarinPlayer.Tizen.TV.Views;
+using JuvoPlayer.Common;
 
 namespace XamarinPlayer.Tizen.TV.ViewModels
 {
@@ -350,7 +351,7 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
                 return;
             }
 
-            if (state == PlayerState.Prepared)
+            if (state == PlayerState.Ready)
             {
                 BindStreamSettings(Audio);
                 BindStreamSettings(Video);

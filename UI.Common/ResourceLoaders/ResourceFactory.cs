@@ -17,12 +17,18 @@
  *
  */
 
-using UI.Common;
-
-namespace XamarinPlayer.Tizen.TV.Services
+namespace UI.Common.ResourceLoaders
 {
-    public interface ISKBitmapCacheService
+    public static class ResourceFactory
     {
-        SKBitmapCache GetCache();
+        public static IResource Create(string path)
+        {
+            return IsRemotePath(path) ? (IResource) new HttpResource(path) : new FileResource(path);
+        }
+
+        private static bool IsRemotePath(string path)
+        {
+            return path.StartsWith("http");
+        }
     }
 }

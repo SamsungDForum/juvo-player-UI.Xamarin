@@ -17,12 +17,30 @@
  *
  */
 
-using UI.Common;
+using SkiaSharp;
 
-namespace XamarinPlayer.Tizen.TV.Services
+namespace UI.Common
 {
-    public interface ISKBitmapCacheService
+    public class SKBitmapRefCounted : IReferenceCountable
     {
-        SKBitmapCache GetCache();
+        private int _counter;
+        public ref int Count => ref _counter;
+
+        public SKBitmap Value { get; }
+
+        public bool IsDisposed { get; private set; }
+
+        public SKBitmapRefCounted(SKBitmap bitmap)
+        {
+            Value = bitmap;
+        }
+
+        public void Dispose()
+        {
+            if (IsDisposed)
+                return;
+            IsDisposed = true;
+            Value.Dispose();
+        }
     }
 }

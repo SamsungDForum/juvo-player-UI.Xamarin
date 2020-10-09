@@ -23,6 +23,7 @@ using System.Threading.Tasks;
 using JuvoPlayer.Common;
 using SkiaSharp;
 using SkiaSharp.Views.Forms;
+using UI.Common;
 using Xamarin.Forms;
 using Xamarin.Forms.Xaml;
 using XamarinPlayer.Tizen.TV.Services;
@@ -47,7 +48,7 @@ namespace XamarinPlayer.Views
                     var state = (PlayerState) n;
                     switch (state)
                     {
-                        case JuvoPlayer.Common.PlayerState.Prepared:
+                        case JuvoPlayer.Common.PlayerState.Ready:
                         {
                             playerView.Show();
                             break;

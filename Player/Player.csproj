@@ -1,0 +1,40 @@
+﻿<Project Sdk="Tizen.NET.Sdk/1.0.9">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFrameworks>tizen50</TargetFrameworks>
+    <TizenCreateTpkOnBuild>false</TizenCreateTpkOnBuild>
+    <Version>1.5.5</Version>
+    <PackageReleaseNotes>Release to be presented to the public. It will be uploaded to the SDF GitHub site.</PackageReleaseNotes>
+    <Company>SRPOL MVS</Company>
+    <Description>Reference for video streaming Tizen .Net TV applications.</Description>
+    <Copyright>Samsung Electronics</Copyright>
+    <AssemblyVersion>1.5.5.0</AssemblyVersion>
+    <FileVersion>1.5.5.0</FileVersion>
+    <SignAssembly>false</SignAssembly>
+    <LangVersion>7.3</LangVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugType>portable</DebugType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>;1701;1702;</NoWarn>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>None</DebugType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+	  <PackageReference Include="JuvoPlayer" Version="2.0.0-p-panek-initial-drm-implementation.3" />
+    <!-- Tizen.* packages are excluded from runtime -->
+    <PackageReference Include="Tizen.NET.TV" Version="6.6.0.5599517">
+      <ExcludeAssets>Runtime</ExcludeAssets>
+    </PackageReference>
+   
+  </ItemGroup>
+
+  <ItemGroup>
+	  <ProjectReference Include="..\UI.Common\UI.Common.csproj" />
+  </ItemGroup>
+</Project>
+

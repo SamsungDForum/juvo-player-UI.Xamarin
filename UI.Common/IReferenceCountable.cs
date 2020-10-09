@@ -15,20 +15,39 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-using JuvoPlayer;
-using Xamarin.Forms;
-using Xamarin.Forms.Platform.Tizen;
-using XamarinPlayer.Tizen.TV.Services;
+using System;
+using System.Threading;
 
-[assembly: Dependency(typeof(PlayerService))]
+// Code snatched from:
+// https://gist.github.com/ufcpp/1c7977f4f5f7856787f3f2b6a8b13c8e
 
-namespace XamarinPlayer.Tizen.TV.Services
+namespace UI.Common
 {
-    internal sealed class PlayerService : PlayerServiceImpl
+    public static class ReferenceCountable
     {
-        public PlayerService()
+        public static T Share<T>(this T obj)
+            where T : IReferenceCountable
         {
-            SetWindow(((FormsApplication)Forms.Context).MainWindow);
+            Interlocked.Increment(ref obj.Count);
+            return obj;
         }
+
+        public static void Release<T>(this T obj)
+            where T : IReferenceCountable
+        {
+            var r = Interlocked.Decrement(ref obj.Count);
+            if (r == 0)
+            {
+                obj.Dispose();
+            }
+        }
+    }
+}
+
+namespace UI.Common
+{
+    public interface IReferenceCountable : IDisposable
+    {
+        ref int Count { get; }
     }
 }

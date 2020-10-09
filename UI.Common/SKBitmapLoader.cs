@@ -17,12 +17,30 @@
  *
  */
 
-using UI.Common;
+using System.Threading;
+using System.Threading.Tasks;
+using UI.Common.ResourceLoaders;
+using SkiaSharp;
 
-namespace XamarinPlayer.Tizen.TV.Services
+namespace UI.Common
 {
-    public interface ISKBitmapCacheService
+    public static class SKBitmapLoader
     {
-        SKBitmapCache GetCache();
+        public static Task<SKBitmap> Load(IResource resource, CancellationToken token)
+        {
+            return Task.Run(async () =>
+            {
+                using (var stream = await resource.ReadAsStreamAsync())
+                {
+                    return token.IsCancellationRequested ? null : SKBitmap.Decode(stream);
+                }
+            }, token);
+        }
+
+        public static async Task<SKBitmap> Load(string resourcePath, CancellationToken token)
+        {
+            using (var resource = ResourceFactory.Create(resourcePath))
+                return await Load(resource, token);
+        }
     }
 }

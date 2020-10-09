@@ -17,12 +17,17 @@
  *
  */
 
-using UI.Common;
+using System;
+using System.IO;
+using System.Threading.Tasks;
 
-namespace XamarinPlayer.Tizen.TV.Services
+namespace UI.Common.ResourceLoaders
 {
-    public interface ISKBitmapCacheService
+    public interface IResource : IDisposable
     {
-        SKBitmapCache GetCache();
+        Task<Stream> ReadAsStreamAsync();
+        Task<string> ReadAsStringAsync();
+        IResource Resolve(string path);
+        string AbsolutePath { get; }
     }
 }

@@ -1,7 +1,7 @@
 /*!
  *
  * [https://github.com/SamsungDForum/JuvoPlayer])
- * Copyright 2020, Samsung Electronics Co., Ltd
+ * Copyright 2018, Samsung Electronics Co., Ltd
  * Licensed under the MIT license
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
@@ -17,12 +17,22 @@
  *
  */
 
-using UI.Common;
+using System;
 
-namespace XamarinPlayer.Tizen.TV.Services
+namespace UI.Common
 {
-    public interface ISKBitmapCacheService
+    public class SeekException : Exception
     {
-        SKBitmapCache GetCache();
+        public SeekException()
+        {
+        }
+
+        public SeekException(string message) : base(message)
+        {
+        }
+
+        public SeekException(string message, Exception innerException) : base(message, innerException)
+        {
+        }
     }
 }
