@@ -17,7 +17,9 @@
     <Description>JuvoPlayerXamarin.Tizen.TV</Description>
     <Version>1.5.5</Version>
     <LangVersion>7.3</LangVersion>
+
     <TizenTpkExcludePattern>runtimes\*\native\*SkiaSharp.*</TizenTpkExcludePattern>
+
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugType>portable</DebugType>
@@ -32,7 +34,7 @@
   <!-- If solution already has PCL project, will reference -->
   <!-- Include Nuget Package for Tizen Project building -->
   <ItemGroup>
-	  <PackageReference Include="JuvoPlayer" Version="2.0.0-p-panek-initial-drm-implementation.3" />
+	  <PackageReference Include="JuvoPlayer" Version="2.0.0-master-v2.3" />
 	  <PackageReference Include="SkiaSharp" Version="1.60.3">
 		  <ExcludeAssets>Runtime</ExcludeAssets>
 	  </PackageReference>
