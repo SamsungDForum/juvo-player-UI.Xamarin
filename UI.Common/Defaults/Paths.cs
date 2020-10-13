@@ -17,12 +17,11 @@
  *
  */
 
-using UI.Common;
-
-namespace XamarinPlayer.Tizen.TV.Services
+namespace UI.Common.Defaults
 {
-    public interface ISKBitmapCacheService
+    public static class Paths
     {
-        SKBitmapCache GetCache();
+        public const string VideoClipJsonPath =
+             "https://raw.githubusercontent.com/SamsungDForum/JuvoPlayer/master/Resources/videoclips.json";
     }
 }

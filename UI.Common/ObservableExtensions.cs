@@ -15,20 +15,28 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-using JuvoPlayer;
-using Xamarin.Forms;
-using Xamarin.Forms.Platform.Tizen;
-using XamarinPlayer.Tizen.TV.Services;
+using System;
+using System.Reactive.Linq;
+using System.Threading;
 
-[assembly: Dependency(typeof(PlayerService))]
-
-namespace XamarinPlayer.Tizen.TV.Services
+namespace UI.Common
 {
-    internal sealed class PlayerService : PlayerServiceImpl
+    public static class ObservableExtensions
     {
-        public PlayerService()
+        public static IDisposable Subscribe<T>(this IObservable<T> observable, Action<T> onNext,
+            SynchronizationContext context)
         {
-            SetWindow(((FormsApplication)Forms.Context).MainWindow);
+            if (context != null)
+                observable = observable.ObserveOn(context);
+            return observable.Subscribe(onNext);
+        }
+
+        public static IDisposable Subscribe<T>(this IObservable<T> observable, Action<T> onNext, Action onCompleted,
+            SynchronizationContext context)
+        {
+            if (context != null)
+                observable = observable.ObserveOn(context);
+            return observable.Subscribe(onNext, onCompleted);
         }
     }
 }

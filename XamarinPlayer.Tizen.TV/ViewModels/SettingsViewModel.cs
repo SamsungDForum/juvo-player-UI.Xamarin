@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using JuvoPlayer.Common;
+using UI.Common;
 
 namespace XamarinPlayer.Tizen.TV.ViewModels
 {

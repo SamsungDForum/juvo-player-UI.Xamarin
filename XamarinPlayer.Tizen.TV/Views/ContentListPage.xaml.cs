@@ -18,8 +18,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using JuvoPlayer.Common;
-using JuvoPlayer.Common.Utils.IReferenceCountableExtensions;
+using UI.Common;
 using SkiaSharp;
 using SkiaSharp.Views.Forms;
 using Xamarin.Forms;
@@ -29,6 +28,7 @@ using XamarinPlayer.Tizen.TV.Services;
 using XamarinPlayer.Tizen.TV.ViewModels;
 using XamarinPlayer.Views;
 using XamarinPlayer.Tizen.TV.Controllers;
+
 
 namespace XamarinPlayer.Tizen.TV.Views
 {

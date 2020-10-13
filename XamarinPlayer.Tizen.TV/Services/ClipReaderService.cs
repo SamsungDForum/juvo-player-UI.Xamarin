@@ -18,10 +18,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Configuration;
-using JuvoPlayer.Common;
-using JuvoPlayer.ResourceLoaders;
-using JuvoPlayer.Utils;
+using UI.Common;
+using UI.Common.Defaults;
+using UI.Common.ResourceLoaders;
+
 using Xamarin.Forms;
 using XamarinPlayer.Tizen.TV.Services;
 

@@ -1,7 +1,6 @@
-/*!
- *
- * [https://github.com/SamsungDForum/JuvoPlayer])
- * Copyright 2020, Samsung Electronics Co., Ltd
+﻿/*!
+ * https://github.com/SamsungDForum/JuvoPlayer
+ * Copyright 2019, Samsung Electronics Co., Ltd
  * Licensed under the MIT license
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
@@ -14,15 +13,18 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
  */
 
-using UI.Common;
+using System;
 
-namespace XamarinPlayer.Tizen.TV.Services
+namespace UI.Common.Defaults
 {
-    public interface ISKBitmapCacheService
+    public static class SeekLogic
     {
-        SKBitmapCache GetCache();
+        public static TimeSpan DefaultSeekInterval { get; set; } = TimeSpan.FromSeconds(5);
+        public static TimeSpan DefaultSeekAccumulateInterval { get; set; } = TimeSpan.FromSeconds(2);
+        public static double DefaultMaximumSeekIntervalPercentOfContentTotalTime { get; set; } = 1.0;
+        public static TimeSpan DefaultSeekIntervalValueThreshold { get; set; } =
+                TimeSpan.FromMilliseconds(200); // time between key events when key is being hold is ~100ms   
     }
 }

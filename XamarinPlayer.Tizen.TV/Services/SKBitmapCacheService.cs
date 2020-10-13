@@ -17,7 +17,7 @@
  *
  */
 
-using JuvoPlayer.Common;
+using UI.Common;
 using Xamarin.Forms;
 using XamarinPlayer.Tizen.TV.Services;
 
