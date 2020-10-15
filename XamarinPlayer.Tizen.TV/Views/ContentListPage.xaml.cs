@@ -255,14 +255,16 @@ namespace XamarinPlayer.Tizen.TV.Views
             (BindingContext as ContentListPageViewModel)?.ActivateCommand.Execute(null);
         }
 
-        public void Suspend()
+        public Task Suspend()
         {
             _contentGridController.FocusedItem?.ResetFocus();
+            return Task.CompletedTask;
         }
 
-        public void Resume()
+        public Task Resume()
         {
             _contentGridController.FocusedItem?.SetFocus();
+            return Task.CompletedTask;
         }
 
         private void SKCanvasView_OnPaintSurface(object sender, SKPaintSurfaceEventArgs e)

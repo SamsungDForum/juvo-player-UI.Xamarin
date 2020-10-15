@@ -61,13 +61,13 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
         private SettingsViewModel _subtitles = new SettingsViewModel { Type = StreamType.Subtitle };
 
         public event PropertyChangedEventHandler PropertyChanged;
-        public ICommand PlayOrPauseCommand => new Command(PlayOrPause);
-        public ICommand PauseCommand => new Command(Pause);
-        public ICommand StartCommand => new Command(Start);
+        public ICommand PlayOrPauseCommand => new Command(async () => await PlayOrPause());
+        public ICommand PauseCommand => new Command(async () => await Pause());
+        public ICommand StartCommand => new Command(async () => await Start());
         public ICommand ForwardCommand => new Command(Forward);
         public ICommand RewindCommand => new Command(Rewind);
-        public ICommand SuspendCommand => new Command(Suspend);
-        public ICommand ResumeCommand => new Command(Resume);
+        public ICommand SuspendCommand => new Command(async () => await Suspend());
+        public ICommand ResumeCommand => new Command(async () => await Resume());
         public ICommand DisposeCommand => new Command(Dispose);
 
         public PlayerViewModel(DetailContentData data, IDialogService dialog)
@@ -80,7 +80,7 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
             {
                 Player.StateChanged()
                     .ObserveOn(SynchronizationContext.Current)
-                    .Subscribe(OnPlayerStateChanged, OnPlayerCompleted),
+                    .Subscribe(async args => await OnPlayerStateChanged(args), OnPlayerCompleted),
 
                 Player.PlaybackError()
                     .ObserveOn(SynchronizationContext.Current)
@@ -290,12 +290,12 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
 
         public IPlayerService Player { get; set; }
 
-        private void PlayOrPause()
+        private Task PlayOrPause()
         {
             if (Player.State == PlayerState.Playing)
-                Player.Pause();
-            else
-                Player.Start();
+                return Player.Pause();
+
+            return Player.Start();
         }
 
         private void InitializeSeekPreview()
@@ -340,7 +340,7 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        private void OnPlayerStateChanged(PlayerState state)
+        private async Task OnPlayerStateChanged(PlayerState state)
         {
             OnPropertyChanged("PlayerState");
             Logger.Info($"Player State Changed: {state}");
@@ -353,11 +353,9 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
 
             if (state == PlayerState.Ready)
             {
-                BindStreamSettings(Audio);
-                BindStreamSettings(Video);
-                BindSubtitleStreamSettings();
+                await Task.WhenAll(BindStreamSettings(Audio), BindStreamSettings(Video), BindSubtitleStreamSettings());
 
-                Player.Start();
+                await Player.Start();
             }
         }
 
@@ -380,7 +378,7 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
             {
                 _hasFinished = true;
 
-                Player.Stop();
+                await Player.Stop();
                 if (!string.IsNullOrEmpty(message))
                     await _dialog.ShowError(message, "Playback Error", "OK",
                         () => MessagingCenter.Send<IEventSender, string>(this, "Pop", null));
@@ -392,25 +390,27 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
             _isBuffering = progress < 100;
         }
 
-        private void Start()
+        private async Task Start()
         {
             if (Player.State == PlayerState.Paused)
             {
-                Player.Start();
+                await Player.Start();
             }
         }
 
-        private void Pause()
+        private Task Pause()
         {
             if (Player.State == PlayerState.Playing)
             {
-                Player.Pause();
+                return Player.Pause();
             }
+
+            return Task.CompletedTask;
         }
 
-        private void BindStreamSettings(SettingsViewModel settings)
+        private async Task BindStreamSettings(SettingsViewModel settings)
         {
-            var streams = Player.GetStreamsDescription(settings.Type);
+            var streams = await Player.GetStreamsDescription(settings.Type);
             if (streams.Count == 0) return;
 
             settings.Source = streams;
@@ -432,7 +432,7 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
             }
         }
 
-        private void BindSubtitleStreamSettings()
+        private async Task BindSubtitleStreamSettings()
         {
             var streams = new List<StreamDescription>
             {
@@ -445,7 +445,7 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
                 }
             };
 
-            streams.AddRange(Player.GetStreamsDescription(Subtitle.Type));
+            streams.AddRange(await Player.GetStreamsDescription(Subtitle.Type));
 
             Subtitle.Source = streams;
             Subtitle.SelectedIndex = 0;
@@ -519,14 +519,14 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
             }
         }
 
-        public void Suspend()
+        public Task Suspend()
         {
-            Player?.Suspend();
+            return Player?.Suspend() ?? Task.CompletedTask;
         }
 
-        public void Resume()
+        public Task Resume()
         {
-            Player?.Resume();
+            return Player?.Resume() ?? Task.CompletedTask;
         }
 
         public void Dispose()

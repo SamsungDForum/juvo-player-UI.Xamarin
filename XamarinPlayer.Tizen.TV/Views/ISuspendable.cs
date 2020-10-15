@@ -15,11 +15,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+using System.Threading.Tasks;
+
 namespace XamarinPlayer.Tizen.TV.Views
 {
     public interface ISuspendable
     {
-        void Suspend();
-        void Resume();
+        Task Suspend();
+        Task Resume();
     }
 }

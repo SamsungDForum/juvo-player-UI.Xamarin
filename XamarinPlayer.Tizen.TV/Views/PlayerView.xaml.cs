@@ -308,15 +308,17 @@ namespace XamarinPlayer.Views
             return Task.FromResult(currentClipUrl?.Equals(url) ?? false);
         }
 
-        public void Suspend()
+        public Task Suspend()
         {
             (BindingContext as PlayerViewModel)?.SuspendCommand.Execute(null);
+            return Task.CompletedTask;
         }
 
-        public void Resume()
+        public Task Resume()
         {
             (BindingContext as PlayerViewModel)?.ResumeCommand.Execute(null);
             PlayButton.Focus();
+            return Task.CompletedTask;
         }
 
         private void SetupDebounce()

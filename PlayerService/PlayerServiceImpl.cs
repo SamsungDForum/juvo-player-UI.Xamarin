@@ -27,10 +27,9 @@ using Nito.AsyncEx;
 using UI.Common;
 using System.Reactive.Subjects;
 using JuvoPlayer;
-using Nito.AsyncEx.Synchronous;
 using Window = ElmSharp.Window;
 using JuvoPlayer.Drms;
-using Player;
+using Polly;
 
 namespace PlayerService
 {
@@ -44,60 +43,77 @@ namespace PlayerService
         public TimeSpan Duration => _player?.Duration ?? TimeSpan.Zero;
         public TimeSpan CurrentPosition => _player?.Position ?? TimeSpan.Zero;
         public bool IsSeekingSupported => true;
-        public PlayerState State => _player?.State ?? PlayerState.None;
+
+        public PlayerState State
+        {
+            get
+            {
+                return _playerStateSubject.Value;
+            }
+        }
+
         public string CurrentCueText => null;
 
-        private readonly ReplaySubject<PlayerState> _playerStateReplaySubject = new ReplaySubject<PlayerState>(1);
+        private readonly BehaviorSubject<PlayerState> _playerStateSubject =
+            new BehaviorSubject<PlayerState>(PlayerState.None);
+
         private readonly Subject<string> _errorSubject = new Subject<string>();
         private readonly Subject<int> _bufferingSubject = new Subject<int>();
         private IDisposable _playerEventSubscription;
 
         private readonly CancellationTokenSource _playerServiceCts = new CancellationTokenSource();
 
-        public void Pause()
+        public async Task Pause()
         {
             Logger.LogEnter();
 
-            _playerThread.Factory.StartNew(async () =>
-            {
-                try
-                {
-                    await _player.Pause();
-                }
-                catch (Exception e)
-                {
-                    _errorSubject.OnNext($"{e.GetType()} {e.Message}");
-                }
-            }).Wait(_playerServiceCts.Token);
+            await (await ThreadJob(async () => await _player.Pause()).ConfigureAwait(false)).ConfigureAwait(false);
 
             Logger.LogExit();
         }
 
-        public Task SeekTo(TimeSpan to)
+        public async Task SeekTo(TimeSpan to)
         {
             Logger.LogEnter();
 
-            Task tsk = _playerThread.Factory.StartNew(async () =>
-            {
-                try
-                {
-                    await _player.Seek(to);
-                }
-                catch (Exception e)
-                {
-                    _errorSubject.OnNext($"{e.GetType()} {e.Message}");
-                }
-            }).WaitAndUnwrapException(_playerServiceCts.Token);
-
+            await (await ThreadJob(async () => await _player.Seek(to)).ConfigureAwait(false)).ConfigureAwait(false);
+            
             Logger.LogExit();
-            return tsk;
+
         }
 
-        public Task ChangeActiveStream(StreamDescription streamDescription)
+        public async Task ChangeActiveStream(StreamDescription streamDescription)
         {
-            Logger.LogEnter();
+            Logger.LogEnter($"Selecting {streamDescription.StreamType} {streamDescription.Id}");
+
+            await (await ThreadJob(async () =>
+            {
+                ContentType selectedContentType = streamDescription.StreamType.ToContentType();
+                StreamGroup selectedContent = _player.GetStreamGroups()
+                    .FirstOrDefault(group => group.ContentType == selectedContentType);
+
+                string stringId = streamDescription.Id.ToString();
+                int index = selectedContent?.Streams.IndexOf(
+                    selectedContent.Streams.FirstOrDefault(stream => stream.Format.Id == stringId)) ?? -1;
+
+                if (index == -1)
+                {
+                    Logger.Warn($"Stream index not found {streamDescription.StreamType} {streamDescription.Id}");
+                    return;
+                }
+
+                StreamGroup complementaryContent = _player.GetStreamGroups()
+                    .FirstOrDefault(group => group.ContentType != selectedContentType);
+
+                Logger.Warn($"Using stream index {index} for {streamDescription.StreamType} {streamDescription.Id}");
+
+                await _player.SetStreamGroups(
+                    new[] { selectedContent, complementaryContent },
+                    new IStreamSelector[] { new FixedStreamSelector(index), null })
+                    .ConfigureAwait(false);
+            }).ConfigureAwait(false)).ConfigureAwait(false);
+
             Logger.LogExit();
-            return Task.FromResult<object>(null);
         }
 
         public void DeactivateStream(StreamType streamType)
@@ -106,124 +122,76 @@ namespace PlayerService
             Logger.LogExit();
         }
 
-        public List<StreamDescription> GetStreamsDescription(StreamType streamType)
+        public async Task<List<StreamDescription>> GetStreamsDescription(StreamType streamType)
         {
-            Logger.LogEnter();
+            Logger.LogEnter(streamType.ToString());
+
+            var result = await ThreadJob(() =>
+                 _player.GetStreamGroups().GetStreamDescriptionsFromStreamType(streamType)).ConfigureAwait(false);
+
             Logger.LogExit();
-            return Enumerable.Empty<StreamDescription>().ToList();
+
+            return result.ToList();
         }
 
-        public async Task SetSourceInternal(ClipDefinition clip)
+        public async Task SetSource(ClipDefinition clip)
         {
-            try
+            Logger.LogEnter(clip.Url);
+
+            await (await ThreadJob(async () =>
             {
                 Logger.Info("Building player");
                 IPlayer player = BuildDashPlayer(clip);
+
+                _playerEventSubscription = player.OnEvent().Subscribe(OnEvent);
 
                 Logger.Info("Preparing player");
                 await player.Prepare();
 
                 _player = player;
-
-                PlayerStatePusher();
-                _playerEventSubscription = _player.OnEvent().Subscribe(OnEvent, SynchronizationContext.Current);
-            }
-            catch (Exception e)
-            {
-                _errorSubject.OnNext(e.ToString());
-            }
-
-            async void PlayerStatePusher()
-            {
-                Logger.Info("PlayerState pump started");
-                try
-                {
-                    PlayerState current = PlayerState.None;
-                    while (!_playerServiceCts.IsCancellationRequested)
-                    {
-                        PlayerState next = _player.State;
-                        if (next == current)
-                        {
-                            await Task.Delay(200, _playerServiceCts.Token);
-                            continue;
-                        }
-
-                        _playerStateReplaySubject.OnNext(next);
-                        current = next;
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Ignore.
-                }
-
-                Logger.Info("PlayerState pump stopped. Completing PlayerState observable.");
-                _playerStateReplaySubject.OnCompleted();
-            }
-        }
-
-        public void SetSource(ClipDefinition clip)
-        {
-            Logger.LogEnter(clip.Url);
-
-            _playerThread.Factory.StartNew(async () =>
-            {
-                try
-                {
-                    await SetSourceInternal(clip);
-                }
-                catch (Exception e)
-                {
-                    _errorSubject.OnNext($"{e.GetType()} {e.Message}");
-                }
-            }).Wait(_playerServiceCts.Token);
-
-            Logger.LogExit(clip.Url);
-        }
-
-        public void Start()
-        {
-            Logger.LogEnter();
-
-            _playerThread.Factory.StartNew(() =>
-            {
-                try
-                {
-                    PlayerState current = _player.State;
-                    switch (_player.State)
-                    {
-                        case PlayerState.Playing:
-                            _player.Pause();
-                            break;
-                        case PlayerState.Ready:
-                        case PlayerState.Paused:
-                            _player.Play();
-                            break;
-                        default:
-                            Logger.Warn($"Cannot play/pause in state: {current}");
-                            break;
-                    }
-                }
-                catch (Exception e)
-                {
-                    _errorSubject.OnNext($"{e.GetType()} {e.Message}");
-                }
-            }).Wait(_playerServiceCts.Token);
+                _playerStateSubject.OnNext(PlayerState.Ready);
+            }).ConfigureAwait(false)).ConfigureAwait(false);
 
             Logger.LogExit();
         }
 
-        public void Stop()
+        public async Task Start()
         {
             Logger.LogEnter();
 
-            // This one... we don't won't to abort when cancelling.
-            _playerThread.Factory.StartNew(async () => await TerminatePlayer()).Wait();
+            await ThreadJob(() =>
+            {
+                PlayerState current = _player.State;
+                switch (current)
+                {
+                    case PlayerState.Playing:
+                        _player.Pause();
+                        _playerStateSubject.OnNext(PlayerState.Paused);
+                        break;
+                    case PlayerState.Ready:
+                    case PlayerState.Paused:
+                        _player.Play();
+                        _playerStateSubject.OnNext(PlayerState.Playing);
+                        break;
+                    default:
+                        Logger.Warn($"Cannot play/pause in state: {current}");
+                        break;
+                }
+            }).ConfigureAwait(false);
 
             Logger.LogExit();
         }
 
-        public void Suspend()
+        public async Task Stop()
+        {
+            Logger.LogEnter();
+
+            await (await ThreadJob(async () => await TerminatePlayer()).ConfigureAwait(false)).ConfigureAwait(false);
+
+            Logger.LogExit();
+        }
+
+        public Task Suspend()
         {
             Logger.LogEnter();
             throw new NotImplementedException();
@@ -239,7 +207,7 @@ namespace PlayerService
 
         public IObservable<PlayerState> StateChanged()
         {
-            return _playerStateReplaySubject
+            return _playerStateSubject
                 .Publish()
                 .RefCount();
         }
@@ -270,9 +238,9 @@ namespace PlayerService
                 .SetMpdUri(clip.Url)
                 .SetConfiguration(configuration);
 
-            if (clip.DRMDatas != null)
+            DrmDescription drmInfo = clip.DRMDatas?.FirstOrDefault();
+            if (drmInfo != null)
             {
-                DrmDescription drmInfo = clip.DRMDatas.FirstOrDefault();
                 builder = builder
                     .SetKeySystem(SchemeToKeySystem(drmInfo.Scheme))
                     .SetDrmSessionHandler(new YoutubeDrmSessionHandler(
@@ -298,7 +266,7 @@ namespace PlayerService
 
         private async Task TerminatePlayer()
         {
-            Logger.Info();
+            Logger.LogEnter();
             _playerServiceCts.Cancel();
             _playerEventSubscription?.Dispose();
 
@@ -315,6 +283,17 @@ namespace PlayerService
                 }
                 _player = null;
             }
+
+            // Failed or not.. close PlayerState observable.
+            _playerStateSubject.OnCompleted();
+
+            _errorSubject.OnCompleted();
+            _errorSubject.Dispose();
+            _playerStateSubject.OnCompleted();
+            _playerStateSubject.Dispose();
+            _playerServiceCts.Dispose();
+
+            Logger.LogExit();
         }
 
         private void OnEvent(IEvent ev)
@@ -327,24 +306,50 @@ namespace PlayerService
                     // EOS will arrive before content end.
                     break;
                 case BufferingEvent buf:
-                    _bufferingSubject.OnNext(buf.IsBuffering ? 0 : 100);
+                    bool buffering = buf.IsBuffering;
+                    _playerStateSubject.OnNext(buffering ? PlayerState.Paused : PlayerState.Playing);
+                    _bufferingSubject.OnNext(buffering ? 0 : 100);
                     break;
             }
 
         }
 
+        
+        private Task<TResult> ThreadJob<TResult>(Func<TResult> threadFunc)
+        {
+            try
+            {
+                return _playerThread.Factory.StartNew(threadFunc);
+            }
+            catch (Exception e)
+            {
+                _errorSubject.OnNext($"{e.GetType()} {e.Message}");
+            }
+
+            return Task.FromResult<TResult>(default);
+        }
+
+
+        private Task ThreadJob(Action threadAction)
+        {
+            try
+            {
+                return _playerThread.Factory.StartNew(threadAction);
+            }
+            catch (Exception e)
+            {
+                _errorSubject.OnNext($"{e.GetType()} {e.Message}");
+            }
+
+            return Task.CompletedTask;
+        }
+         
         public void Dispose()
         {
-            Logger.Info();
-            Stop();
-
-            _errorSubject.OnCompleted();
-            _errorSubject.Dispose();
-            _playerStateReplaySubject.OnCompleted();
-            _playerStateReplaySubject.Dispose();
-            _playerServiceCts.Dispose();
-
+            Logger.LogEnter();
+            Task.Run(async () => await Stop().ConfigureAwait(false)).Wait();
             _playerThread.Join();
+            Logger.LogExit();
         }
     }
 }
