@@ -1,6 +1,6 @@
-/*!
+﻿/*!
  * https://github.com/SamsungDForum/JuvoPlayer
- * Copyright 2018, Samsung Electronics Co., Ltd
+ * Copyright 2020, Samsung Electronics Co., Ltd
  * Licensed under the MIT license
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
@@ -15,19 +15,26 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-using PlayerService;
-using Xamarin.Forms;
-using Xamarin.Forms.Platform.Tizen;
+using System;
+using System.Runtime.CompilerServices;
+using JuvoLogger;
 
-[assembly: Dependency(typeof(XamarinPlayer.Tizen.TV.Services.PlayerService))]
-
-namespace XamarinPlayer.Tizen.TV.Services
+namespace Player
 {
-    internal sealed class PlayerService : PlayerServiceImpl
+    internal static class LogToolBox
     {
-        public PlayerService()
-        {
-            SetWindow(((FormsApplication)Forms.Context).MainWindow);
-        }
+        public static void LogEnter(
+            this ILogger logger,
+            string msg = "",
+            [CallerFilePath] string file = "",
+            [CallerMemberName] string method = "",
+            [CallerLineNumber] int line = 0) => logger.Debug("Enter() -> " + msg, file, method, line);
+
+        public static void LogExit(
+            this ILogger logger,
+            string msg = "",
+            [CallerFilePath] string file = "",
+            [CallerMemberName] string method = "",
+            [CallerLineNumber] int line = 0) => logger.Debug("Exit() <- " + msg, file, method, line);
     }
 }

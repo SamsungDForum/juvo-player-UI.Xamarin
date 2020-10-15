@@ -38,7 +38,9 @@ namespace XamarinPlayer.Tizen.TV.Services
                 using (var resource = ResourceFactory.Create(Paths.VideoClipJsonPath))
                 {
                     var content = await resource.ReadAsStringAsync();
-                    return JSONFileReader.DeserializeJsonText<List<ClipDefinition>>(content).Select(o =>
+                    return JSONFileReader.DeserializeJsonText<List<ClipDefinition>>(content)
+                        .Where(clip => SupportedClipTypes.SupportedTypes.Contains(clip.Type))
+                        .Select(o =>
                     {
                         if (o.SeekPreviewPath != null)
                             o.SeekPreviewPath = resource.Resolve(o.SeekPreviewPath).AbsolutePath;
@@ -48,9 +50,12 @@ namespace XamarinPlayer.Tizen.TV.Services
 
                         var clip = new Clip
                         {
-                            Image = o.Poster, Description = o.Description, Source = o.Url,
+                            Image = o.Poster,
+                            Description = o.Description,
+                            Source = o.Url,
                             Title = o.Title,
-                            ClipDetailsHandle = o, TilePreviewPath = o.TilePreviewPath
+                            ClipDetailsHandle = o,
+                            TilePreviewPath = o.TilePreviewPath
                         };
                         return clip;
                     }).ToList();

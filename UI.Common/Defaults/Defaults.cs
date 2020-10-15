@@ -27,4 +27,9 @@ namespace UI.Common.Defaults
         public static TimeSpan DefaultSeekIntervalValueThreshold { get; set; } =
                 TimeSpan.FromMilliseconds(200); // time between key events when key is being hold is ~100ms   
     }
+
+    public static class SupportedClipTypes
+    {
+        public static string[] SupportedTypes { get; set; } = { "dash" };
+    }
 }
