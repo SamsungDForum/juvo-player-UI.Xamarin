@@ -34,7 +34,7 @@
   <!-- If solution already has PCL project, will reference -->
   <!-- Include Nuget Package for Tizen Project building -->
   <ItemGroup>
-	  <PackageReference Include="JuvoPlayer" Version="2.0.0-master-v2.3" />
+	  <PackageReference Include="JuvoPlayer" Version="2.0.0-p-panek-get-selected-stream-groups-api.1" />
 	  <PackageReference Include="SkiaSharp" Version="1.60.3">
 		  <ExcludeAssets>Runtime</ExcludeAssets>
 	  </PackageReference>

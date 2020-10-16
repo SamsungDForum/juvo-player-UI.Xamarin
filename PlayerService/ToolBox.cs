@@ -101,5 +101,31 @@ namespace PlayerService
                 .SelectMany(group => group.Streams)
                 .Select(format => format.Format.ToStreamDescription(type));
         }
+
+        public static (StreamGroup group, IStreamSelector selector) SelectStream(this StreamGroup[] groups, ContentType type, string id)
+        {
+            StreamGroup selectedContent = groups.FirstOrDefault(group => group.ContentType == type);
+
+            int index = selectedContent?.Streams.IndexOf(
+                selectedContent.Streams.FirstOrDefault(stream => stream.Format.Id == id)) ?? -1;
+
+            return (selectedContent, index == -1 ? null : new FixedStreamSelector(index));
+        }
+
+        public static (StreamGroup[], IStreamSelector[]) UpdateSelection(
+            this in (StreamGroup[] groups, IStreamSelector[] selectors) currentSelection,
+            (StreamGroup group, IStreamSelector selector) newSelection)
+        {
+            for (int i = 0; i < currentSelection.groups.Length; i++)
+            {
+                if (currentSelection.groups[i].ContentType == newSelection.group.ContentType)
+                {
+                    currentSelection.groups[i] = newSelection.group;
+                    currentSelection.selectors[i] = newSelection.selector;
+                }
+            }
+
+            return currentSelection;
+        }
     }
 }

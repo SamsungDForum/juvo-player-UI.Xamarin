@@ -67,7 +67,7 @@ namespace PlayerService
         {
             Logger.LogEnter();
 
-            await (await ThreadJob(async () => await _player.Pause()).ConfigureAwait(false)).ConfigureAwait(false);
+            await await ThreadJob(async () => await _player.Pause());
 
             Logger.LogExit();
         }
@@ -76,8 +76,8 @@ namespace PlayerService
         {
             Logger.LogEnter();
 
-            await (await ThreadJob(async () => await _player.Seek(to)).ConfigureAwait(false)).ConfigureAwait(false);
-            
+            await await ThreadJob(async () => await _player.Seek(to));
+
             Logger.LogExit();
 
         }
@@ -86,32 +86,24 @@ namespace PlayerService
         {
             Logger.LogEnter($"Selecting {streamDescription.StreamType} {streamDescription.Id}");
 
-            await (await ThreadJob(async () =>
+            await await ThreadJob(async () =>
             {
-                ContentType selectedContentType = streamDescription.StreamType.ToContentType();
-                StreamGroup selectedContent = _player.GetStreamGroups()
-                    .FirstOrDefault(group => group.ContentType == selectedContentType);
+                var selected = _player.GetStreamGroups().SelectStream(
+                    streamDescription.StreamType.ToContentType(),
+                    streamDescription.Id.ToString());
 
-                string stringId = streamDescription.Id.ToString();
-                int index = selectedContent?.Streams.IndexOf(
-                    selectedContent.Streams.FirstOrDefault(stream => stream.Format.Id == stringId)) ?? -1;
-
-                if (index == -1)
+                if (selected.selector == null)
                 {
                     Logger.Warn($"Stream index not found {streamDescription.StreamType} {streamDescription.Id}");
                     return;
                 }
 
-                StreamGroup complementaryContent = _player.GetStreamGroups()
-                    .FirstOrDefault(group => group.ContentType != selectedContentType);
+                var (newGroups, newSelectors) = _player.GetSelectedStreamGroups().UpdateSelection(selected);
 
-                Logger.Warn($"Using stream index {index} for {streamDescription.StreamType} {streamDescription.Id}");
+                Logger.Info($"Using {selected.selector.GetType()} for {streamDescription.StreamType} {streamDescription.Id}");
 
-                await _player.SetStreamGroups(
-                    new[] { selectedContent, complementaryContent },
-                    new IStreamSelector[] { new FixedStreamSelector(index), null })
-                    .ConfigureAwait(false);
-            }).ConfigureAwait(false)).ConfigureAwait(false);
+                await _player.SetStreamGroups(newGroups, newSelectors);
+            });
 
             Logger.LogExit();
         }
@@ -127,7 +119,7 @@ namespace PlayerService
             Logger.LogEnter(streamType.ToString());
 
             var result = await ThreadJob(() =>
-                 _player.GetStreamGroups().GetStreamDescriptionsFromStreamType(streamType)).ConfigureAwait(false);
+                 _player.GetStreamGroups().GetStreamDescriptionsFromStreamType(streamType));
 
             Logger.LogExit();
 
@@ -138,7 +130,7 @@ namespace PlayerService
         {
             Logger.LogEnter(clip.Url);
 
-            await (await ThreadJob(async () =>
+            await await ThreadJob(async () =>
             {
                 Logger.Info("Building player");
                 IPlayer player = BuildDashPlayer(clip);
@@ -150,7 +142,7 @@ namespace PlayerService
 
                 _player = player;
                 _playerStateSubject.OnNext(PlayerState.Ready);
-            }).ConfigureAwait(false)).ConfigureAwait(false);
+            });
 
             Logger.LogExit();
         }
@@ -177,7 +169,7 @@ namespace PlayerService
                         Logger.Warn($"Cannot play/pause in state: {current}");
                         break;
                 }
-            }).ConfigureAwait(false);
+            });
 
             Logger.LogExit();
         }
@@ -186,7 +178,7 @@ namespace PlayerService
         {
             Logger.LogEnter();
 
-            await (await ThreadJob(async () => await TerminatePlayer()).ConfigureAwait(false)).ConfigureAwait(false);
+            await await ThreadJob(async () => await TerminatePlayer());
 
             Logger.LogExit();
         }
@@ -314,40 +306,42 @@ namespace PlayerService
 
         }
 
-        
-        private Task<TResult> ThreadJob<TResult>(Func<TResult> threadFunc)
+        private Task<TResult> ThreadJob<TResult>(Func<TResult> threadFunc) =>
+            _playerThread.Factory.StartNew(() => InvokeFunction(threadFunc));
+
+        private Task ThreadJob(Action threadAction) =>
+            _playerThread.Factory.StartNew(() => InvokeAction(threadAction));
+
+        private TResult InvokeFunction<TResult>(Func<TResult> threadFunction)
         {
             try
             {
-                return _playerThread.Factory.StartNew(threadFunc);
+                return threadFunction();
             }
             catch (Exception e)
             {
                 _errorSubject.OnNext($"{e.GetType()} {e.Message}");
             }
 
-            return Task.FromResult<TResult>(default);
+            return default;
         }
 
-
-        private Task ThreadJob(Action threadAction)
+        private void InvokeAction(Action threadAction)
         {
             try
             {
-                return _playerThread.Factory.StartNew(threadAction);
+                threadAction();
             }
             catch (Exception e)
             {
                 _errorSubject.OnNext($"{e.GetType()} {e.Message}");
             }
-
-            return Task.CompletedTask;
         }
-         
+
         public void Dispose()
         {
             Logger.LogEnter();
-            Task.Run(async () => await Stop().ConfigureAwait(false)).Wait();
+            Task.Run(async () => await Stop()).Wait();
             _playerThread.Join();
             Logger.LogExit();
         }
