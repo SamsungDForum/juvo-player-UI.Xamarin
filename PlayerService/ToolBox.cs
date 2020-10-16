@@ -113,7 +113,7 @@ namespace PlayerService
         }
 
         public static (StreamGroup[], IStreamSelector[]) UpdateSelection(
-            this in (StreamGroup[] groups, IStreamSelector[] selectors) currentSelection,
+            this (StreamGroup[] groups, IStreamSelector[] selectors) currentSelection,
             (StreamGroup group, IStreamSelector selector) newSelection)
         {
             for (int i = 0; i < currentSelection.groups.Length; i++)
