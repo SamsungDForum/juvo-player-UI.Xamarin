@@ -31,15 +31,15 @@ namespace UI.Common
         bool IsSeekingSupported { get; }
         PlayerState State { get; }
         string CurrentCueText { get; }
-        void Pause();
+        Task Pause();
         Task SeekTo(TimeSpan to);
         Task ChangeActiveStream(StreamDescription streamDescription);
         void DeactivateStream(StreamType streamType);
-        List<StreamDescription> GetStreamsDescription(StreamType streamType);
-        void SetSource(ClipDefinition clip);
-        void Start();
-        void Stop();
-        void Suspend();
+        Task<List<StreamDescription>> GetStreamsDescription(StreamType streamType);
+        Task SetSource(ClipDefinition clip);
+        Task Start();
+        Task Stop();
+        Task Suspend();
         Task Resume();
         IObservable<PlayerState> StateChanged();
         IObservable<string> PlaybackError();

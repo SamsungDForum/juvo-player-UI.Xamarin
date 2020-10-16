@@ -5,7 +5,7 @@ VisualStudioVersion = 16.0.30523.141
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "XamarinPlayer.Tizen.TV", "XamarinPlayer.Tizen.TV\XamarinPlayer.Tizen.TV.csproj", "{612A813D-8D35-4BB1-8410-CDD350DBCC56}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Player", "Player\Player.csproj", "{BF0EDAEC-60AF-4CD5-90FA-A01CD10DB122}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PlayerService", "PlayerService\PlayerService.csproj", "{BF0EDAEC-60AF-4CD5-90FA-A01CD10DB122}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UI.Common", "UI.Common\UI.Common.csproj", "{80D7358D-E01C-4275-A582-15F934ABDF29}"
 EndProject
