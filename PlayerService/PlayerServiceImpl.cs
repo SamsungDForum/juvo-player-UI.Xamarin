@@ -61,7 +61,8 @@ namespace PlayerService
         private readonly Subject<int> _bufferingSubject = new Subject<int>();
         private IDisposable _playerEventSubscription;
 
-        private readonly CancellationTokenSource _playerServiceCts = new CancellationTokenSource();
+        private ClipDefinition _currentClip;
+        private TimeSpan _suspendTimeIndex;
 
         public async Task Pause()
         {
@@ -84,7 +85,7 @@ namespace PlayerService
 
         public async Task ChangeActiveStream(StreamDescription streamDescription)
         {
-            Logger.LogEnter($"Selecting {streamDescription.StreamType} {streamDescription.Id}");
+            Logger.LogEnter($"Selecting {streamDescription.StreamType} {streamDescription.Description}");
 
             await await ThreadJob(async () =>
             {
@@ -94,13 +95,13 @@ namespace PlayerService
 
                 if (selected.selector == null)
                 {
-                    Logger.Warn($"Stream index not found {streamDescription.StreamType} {streamDescription.Id}");
+                    Logger.Warn($"Stream index not found {streamDescription.StreamType} {streamDescription.Description}");
                     return;
                 }
 
                 var (newGroups, newSelectors) = _player.GetSelectedStreamGroups().UpdateSelection(selected);
 
-                Logger.Info($"Using {selected.selector.GetType()} for {streamDescription.StreamType} {streamDescription.Id}");
+                Logger.Info($"Using {selected.selector.GetType()} for {streamDescription.StreamType} {streamDescription.Description}");
 
                 await _player.SetStreamGroups(newGroups, newSelectors);
             });
@@ -132,15 +133,13 @@ namespace PlayerService
 
             await await ThreadJob(async () =>
             {
-                Logger.Info("Building player");
                 IPlayer player = BuildDashPlayer(clip);
-
                 _playerEventSubscription = player.OnEvent().Subscribe(OnEvent);
 
-                Logger.Info("Preparing player");
                 await player.Prepare();
-
                 _player = player;
+                _currentClip = clip;
+
                 _playerStateSubject.OnNext(PlayerState.Ready);
             });
 
@@ -183,17 +182,38 @@ namespace PlayerService
             Logger.LogExit();
         }
 
-        public Task Suspend()
+        public async Task Suspend()
         {
             Logger.LogEnter();
-            throw new NotImplementedException();
+
+            await await ThreadJob(async () =>
+            {
+                _suspendTimeIndex = _player.Position ?? TimeSpan.Zero;
+                await TerminatePlayer();
+
+                Logger.Info($"Suspended {_suspendTimeIndex}@{_currentClip.Url}");
+            });
+
             Logger.LogExit();
         }
 
-        public Task Resume()
+        public async Task Resume()
         {
             Logger.LogEnter();
-            throw new NotImplementedException();
+
+            await await ThreadJob(async () =>
+            {
+                IPlayer player = BuildDashPlayer(_currentClip, new Configuration { StartTime = _suspendTimeIndex });
+                _playerEventSubscription = player.OnEvent().Subscribe(OnEvent);
+
+                await player.Prepare();
+                player.Play();
+                _player = player;
+                // Can be expanded to restore track selection / playback state (Paused/Playing)
+
+                Logger.Info($"Resumed {_suspendTimeIndex}@{_currentClip.Url}");
+            });
+
             Logger.LogExit();
         }
 
@@ -259,7 +279,6 @@ namespace PlayerService
         private async Task TerminatePlayer()
         {
             Logger.LogEnter();
-            _playerServiceCts.Cancel();
             _playerEventSubscription?.Dispose();
 
             if (_player != null)
@@ -275,15 +294,6 @@ namespace PlayerService
                 }
                 _player = null;
             }
-
-            // Failed or not.. close PlayerState observable.
-            _playerStateSubject.OnCompleted();
-
-            _errorSubject.OnCompleted();
-            _errorSubject.Dispose();
-            _playerStateSubject.OnCompleted();
-            _playerStateSubject.Dispose();
-            _playerServiceCts.Dispose();
 
             Logger.LogExit();
         }
@@ -343,6 +353,14 @@ namespace PlayerService
             Logger.LogEnter();
             Task.Run(async () => await Stop()).Wait();
             _playerThread.Join();
+
+            _playerStateSubject.OnCompleted();
+
+            _errorSubject.OnCompleted();
+            _errorSubject.Dispose();
+            _playerStateSubject.OnCompleted();
+            _playerStateSubject.Dispose();
+
             Logger.LogExit();
         }
     }

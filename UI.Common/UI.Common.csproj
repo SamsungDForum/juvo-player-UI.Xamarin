@@ -28,7 +28,7 @@
 	  <PackageReference Include="SkiaSharp" Version="1.60.3">
 		  <ExcludeAssets>Runtime</ExcludeAssets>
 	  </PackageReference>
-	  <PackageReference Include="JuvoPlayer" Version="2.0.0-p-panek-get-selected-stream-groups-api.1" />
+	  <PackageReference Include="JuvoPlayer" Version="2.0.0-p-panek-get-selected-stream-groups-api.2" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
    
     <PackageReference Include="Tizen.NET.TV" Version="6.6.0.5599517">
