@@ -19,17 +19,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using JuvoLogger;
-using JuvoPlayer.Common;
 using Nito.AsyncEx;
 using UI.Common;
 using System.Reactive.Subjects;
 using JuvoPlayer;
-using Window = ElmSharp.Window;
+using JuvoPlayer.Common;
 using JuvoPlayer.Drms;
-using Polly;
+using JuvoLogger;
+using Window = ElmSharp.Window;
 
 namespace PlayerService
 {
@@ -46,17 +44,12 @@ namespace PlayerService
 
         public PlayerState State
         {
-            get
-            {
-                return _playerStateSubject.Value;
-            }
+            get { return _playerStateSubject.Value; }
         }
 
         public string CurrentCueText => null;
 
-        private readonly BehaviorSubject<PlayerState> _playerStateSubject =
-            new BehaviorSubject<PlayerState>(PlayerState.None);
-
+        private readonly BehaviorSubject<PlayerState> _playerStateSubject = new BehaviorSubject<PlayerState>(PlayerState.None);
         private readonly Subject<string> _errorSubject = new Subject<string>();
         private readonly Subject<int> _bufferingSubject = new Subject<int>();
         private IDisposable _playerEventSubscription;
@@ -80,7 +73,6 @@ namespace PlayerService
             await await ThreadJob(async () => await _player.Seek(to));
 
             Logger.LogExit();
-
         }
 
         public async Task ChangeActiveStream(StreamDescription streamDescription)
@@ -134,7 +126,7 @@ namespace PlayerService
             await await ThreadJob(async () =>
             {
                 IPlayer player = BuildDashPlayer(clip);
-                _playerEventSubscription = player.OnEvent().Subscribe(OnEvent);
+                _playerEventSubscription = player.OnEvent().Subscribe(async e => await OnEvent(e));
 
                 await player.Prepare();
                 _player = player;
@@ -159,11 +151,13 @@ namespace PlayerService
                         _player.Pause();
                         _playerStateSubject.OnNext(PlayerState.Paused);
                         break;
+
                     case PlayerState.Ready:
                     case PlayerState.Paused:
                         _player.Play();
                         _playerStateSubject.OnNext(PlayerState.Playing);
                         break;
+
                     default:
                         Logger.Warn($"Cannot play/pause in state: {current}");
                         break;
@@ -204,7 +198,7 @@ namespace PlayerService
             await await ThreadJob(async () =>
             {
                 IPlayer player = BuildDashPlayer(_currentClip, new Configuration { StartTime = _suspendTimeIndex });
-                _playerEventSubscription = player.OnEvent().Subscribe(OnEvent);
+                _playerEventSubscription = player.OnEvent().Subscribe(async e => await OnEvent(e));
 
                 await player.Prepare();
                 player.Play();
@@ -276,44 +270,52 @@ namespace PlayerService
             }
         }
 
-        private async Task TerminatePlayer()
+        private async Task TerminatePlayer(TimeSpan? delay = null)
         {
-            Logger.LogEnter();
+            Logger.LogEnter(delay.HasValue ? $"Termination in {delay.Value}" : string.Empty);
+
+            if (delay.HasValue)
+                await Task.Delay(delay.Value);
+
             _playerEventSubscription?.Dispose();
 
             if (_player != null)
             {
                 Logger.Info("Disposing player");
+                IPlayer current = _player;
+                _player = null;
+
                 try
                 {
-                    await _player.DisposeAsync();
+                    await current.DisposeAsync();
                 }
                 catch (Exception e)
                 {
                     Logger.Warn($"Ignoring exception: {e}");
                 }
-                _player = null;
             }
+
+            _playerStateSubject.OnCompleted();
 
             Logger.LogExit();
         }
 
-        private void OnEvent(IEvent ev)
+        private async Task OnEvent(IEvent ev)
         {
             Logger.Info(ev.ToString());
 
             switch (ev)
             {
-                case EosEvent eos:
-                    // EOS will arrive before content end.
+                case EosEvent _:
+                    await ThreadJob(async () => await TerminatePlayer(TimeSpan.FromSeconds(1)));
                     break;
+
                 case BufferingEvent buf:
                     bool buffering = buf.IsBuffering;
                     _playerStateSubject.OnNext(buffering ? PlayerState.Paused : PlayerState.Playing);
                     _bufferingSubject.OnNext(buffering ? 0 : 100);
                     break;
             }
-
         }
 
         private Task<TResult> ThreadJob<TResult>(Func<TResult> threadFunc) =>
@@ -351,14 +353,14 @@ namespace PlayerService
         public void Dispose()
         {
             Logger.LogEnter();
-            Task.Run(async () => await Stop()).Wait();
-            _playerThread.Join();
 
-            _playerStateSubject.OnCompleted();
+            ThreadJob(async () => await TerminatePlayer());
+            _playerThread.Join();
 
             _errorSubject.OnCompleted();
             _errorSubject.Dispose();
-            _playerStateSubject.OnCompleted();
+            _bufferingSubject.OnCompleted();
+            _bufferingSubject.Dispose();
             _playerStateSubject.Dispose();
 
             Logger.LogExit();
