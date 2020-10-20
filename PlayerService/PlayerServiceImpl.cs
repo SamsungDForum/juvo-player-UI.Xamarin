@@ -171,7 +171,8 @@ namespace PlayerService
         {
             Logger.LogEnter();
 
-            await await ThreadJob(async () => await TerminatePlayer());
+            // Terminate by closing state subject. Single player termination path via Dispose. Suspend excluded.
+            await ThreadJob(() => _playerStateSubject.OnCompleted());
 
             Logger.LogExit();
         }
@@ -270,12 +271,9 @@ namespace PlayerService
             }
         }
 
-        private async Task TerminatePlayer(TimeSpan? delay = null)
+        private async Task TerminatePlayer()
         {
-            Logger.LogEnter(delay.HasValue ? $"Termination in {delay.Value}" : string.Empty);
-
-            if (delay.HasValue)
-                await Task.Delay(delay.Value);
+            Logger.LogEnter();
 
             _playerEventSubscription?.Dispose();
 
@@ -295,8 +293,6 @@ namespace PlayerService
                 }
             }
 
-            _playerStateSubject.OnCompleted();
-
             Logger.LogExit();
         }
 
@@ -307,7 +303,7 @@ namespace PlayerService
             switch (ev)
             {
                 case EosEvent _:
-                    await ThreadJob(async () => await TerminatePlayer(TimeSpan.FromSeconds(1)));
+                    await ThreadJob(() => _playerStateSubject.OnCompleted());
                     break;
 
                 case BufferingEvent buf:
