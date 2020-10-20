@@ -440,7 +440,7 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
                 {
                     Default = true,
                     Description = "off",
-                    Id = 0,
+                    Id = string.Empty,
                     StreamType = StreamType.Subtitle
                 }
             };

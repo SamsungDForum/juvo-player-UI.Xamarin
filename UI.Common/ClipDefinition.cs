@@ -34,7 +34,7 @@ namespace UI.Common
             return new StreamDescription()
             {
                 Description = Language,
-                Id = Id,
+                Id = Id.ToString(),
                 StreamType = StreamType.Subtitle
             };
         }
