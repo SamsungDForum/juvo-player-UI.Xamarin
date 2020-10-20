@@ -44,6 +44,8 @@ namespace PlayerService
 
     internal static class PlayerServiceToolBox
     {
+        public static readonly ILogger Logger = LoggerManager.GetInstance().GetLogger("JuvoPlayer");
+
         public static StreamDescription ToStreamDescription(this Format format, StreamType stream)
         {
             string description;
@@ -59,7 +61,7 @@ namespace PlayerService
                     {
                         Default = format.RoleFlags.HasFlag(RoleFlags.Main),
                         Description = description,
-                        Id = Convert.ToInt32(format.Id),
+                        Id = format.Id,
                         StreamType = stream
                     };
 
@@ -72,7 +74,7 @@ namespace PlayerService
                     {
                         Default = format.RoleFlags.HasFlag(RoleFlags.Main),
                         Description = description,
-                        Id = Convert.ToInt32(format.Id),
+                        Id = format.Id,
                         StreamType = stream
                     };
 
@@ -85,7 +87,7 @@ namespace PlayerService
                     {
                         Default = format.RoleFlags.HasFlag(RoleFlags.Main),
                         Description = description,
-                        Id = Convert.ToInt32(format.Id),
+                        Id = format.Id,
                         StreamType = stream
                     };
 
@@ -105,6 +107,9 @@ namespace PlayerService
         public static (StreamGroup group, IStreamSelector selector) SelectStream(this StreamGroup[] groups, ContentType type, string id)
         {
             StreamGroup selectedContent = groups.FirstOrDefault(group => group.ContentType == type);
+
+            if (selectedContent?.Streams.Count != selectedContent?.Streams.Select(stream => stream.Format.Id).Distinct().Count())
+                Logger.Warn("Stream Format IDs are not unique. Stream selection may not be accurate");
 
             int index = selectedContent?.Streams.IndexOf(
                 selectedContent.Streams.FirstOrDefault(stream => stream.Format.Id == id)) ?? -1;

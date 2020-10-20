@@ -26,7 +26,7 @@ using System.Reactive.Subjects;
 using JuvoPlayer;
 using JuvoPlayer.Common;
 using JuvoPlayer.Drms;
-using JuvoLogger;
+using static PlayerService.PlayerServiceToolBox;
 using Window = ElmSharp.Window;
 
 namespace PlayerService
@@ -34,7 +34,7 @@ namespace PlayerService
     public class PlayerServiceImpl : IPlayerService
     {
         private readonly AsyncContextThread _playerThread = new AsyncContextThread();
-        private static readonly ILogger Logger = LoggerManager.GetInstance().GetLogger("JuvoPlayer");
+
         private Window _window;
         private IPlayer _player;
 

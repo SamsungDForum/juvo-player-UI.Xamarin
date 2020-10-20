@@ -21,7 +21,7 @@ namespace UI.Common
 {
     public class StreamDescription
     {
-        public int Id { get; set; }
+        public string Id { get; set; }
         public string Description { get; set; }
         public StreamType StreamType { get; set; }
         public bool Default { get; set; }
