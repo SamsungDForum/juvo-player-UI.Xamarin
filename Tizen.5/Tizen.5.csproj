@@ -1,0 +1,21 @@
+<Project Sdk="Tizen.NET.Sdk/1.1.6">
+
+  <PropertyGroup>
+    <TargetFramework>tizen50</TargetFramework>
+    <AssemblyName>juvo-UI.Xamarin</AssemblyName>
+    <Authors>SRPOL MVS</Authors>
+    <Company>Samsung Electronics VD</Company>
+    <NeutralLanguage>en</NeutralLanguage>
+    <Description>juvo UI.Xamarin Tizen 5</Description>
+    <Version>1.5.5</Version>
+    <LangVersion>7.3</LangVersion>
+    <ApplicationIcon />
+    <OutputType>Exe</OutputType>
+    <StartupObject />
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UI.Xamarin\UI.Xamarin.csproj" />
+  </ItemGroup>
+
+</Project>
