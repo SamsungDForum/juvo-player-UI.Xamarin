@@ -32,7 +32,7 @@ using Size = ElmSharp.Size;
 
 namespace XamarinPlayer.Tizen.TV
 {
-    internal class Program : FormsApplication, IKeyEventSender
+    public class Program : FormsApplication, IKeyEventSender
     {
         private EcoreEvent<EcoreKeyEventArgs> _keyDown;
         private App _app;
@@ -122,7 +122,7 @@ namespace XamarinPlayer.Tizen.TV
             await _app.LoadUrl(url);
         }
 
-        private static void Main(string[] args)
+        public static void Main(string[] args)
         {
             AppDomain.CurrentDomain.UnhandledException += UnhandledException;
 
