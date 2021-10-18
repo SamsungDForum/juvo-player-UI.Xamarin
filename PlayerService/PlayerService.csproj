@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-	  <PackageReference Include="JuvoPlayer" Version="2.1.0-alpha" />
+	  <PackageReference Include="JuvoPlayer" Version="2.3.0-alpha" />
   </ItemGroup>
 
   <ItemGroup>

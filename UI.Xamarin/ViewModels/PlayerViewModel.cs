@@ -24,7 +24,6 @@ using System.Windows.Input;
 using System;
 using System.Collections.Generic;
 using System.Reactive.Disposables;
-using JuvoLogger;
 
 using SkiaSharp;
 using UI.Common;
@@ -38,7 +37,7 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
 {
     public class PlayerViewModel : INotifyPropertyChanged, ISeekLogicClient, ISuspendable, IDisposable, IEventSender
     {
-        private static readonly ILogger Logger = LoggerManager.GetInstance().GetLogger("JuvoPlayer");
+        //private static readonly ILogger Logger = LoggerManager.GetInstance().GetLogger("JuvoPlayer");
         private DetailContentData _contentData;
         private readonly IDialogService _dialog;
         private SeekLogic _seekLogic; // needs to be initialized in constructor!
@@ -282,7 +281,7 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    Logger.Error(ex);
+                    UI.Common.Logger.Log.Error(ex);
                     Subtitle.SelectedIndex = 0;
                 }
             }
@@ -321,7 +320,7 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
             }
             catch (Exception ex)
             {
-                Logger.Error(ex);
+                UI.Common.Logger.Log.Error(ex);
             }
         }
 
@@ -342,32 +341,39 @@ namespace XamarinPlayer.Tizen.TV.ViewModels
 
         private async Task OnPlayerStateChanged(PlayerState state)
         {
-            OnPropertyChanged("PlayerState");
-            Logger.Info($"Player State Changed: {state}");
-
-            if (_isDisposed)
+            using (UI.Common.Logger.Log.Scope(state.ToString()))
             {
-                Logger.Info("Player has been disposed.");
-                return;
-            }
+                OnPropertyChanged("PlayerState");
+                UI.Common.Logger.Log.Info($"Player State Changed: {state}");
 
-            if (state == PlayerState.Ready)
-            {
-                await Task.WhenAll(BindStreamSettings(Audio), BindStreamSettings(Video), BindSubtitleStreamSettings());
+                if (_isDisposed)
+                {
+                    UI.Common.Logger.Log.Info("Player has been disposed.");
+                    return;
+                }
 
-                await Player.Start();
+                if (state == PlayerState.Ready)
+                {
+                    await Task.WhenAll(BindStreamSettings(Audio), BindStreamSettings(Video),
+                        BindSubtitleStreamSettings());
+
+                    await Player.Start();
+                }
             }
         }
 
         private void OnPlayerCompleted()
         {
-            Logger.Info($"Player State completed");
-            if (_hasFinished)
-                return;
+            using (UI.Common.Logger.Log.Scope())
+            {
+                UI.Common.Logger.Log.Info($"Player State completed");
+                if (_hasFinished)
+                    return;
 
-            _hasFinished = true;
+                _hasFinished = true;
 
-            MessagingCenter.Send<IEventSender, string>(this, "Pop", null);
+                MessagingCenter.Send<IEventSender, string>(this, "Pop", null);
+            }
         }
 
         private async Task OnPlaybackError(string message)
