@@ -44,12 +44,23 @@ namespace PlayerService
 
         public PlayerState State
         {
-            get { return _playerStateSubject.Value; }
+            get
+            {
+                try
+                {
+                    return _player?.State ?? PlayerState.None;
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e);
+                    throw;
+                }
+            }
         }
 
         public string CurrentCueText => null;
 
-        private readonly BehaviorSubject<PlayerState> _playerStateSubject = new BehaviorSubject<PlayerState>(PlayerState.None);
+        private readonly ReplaySubject<PlayerState> _playerStateSubject = new ReplaySubject<PlayerState>(1);
         private readonly Subject<string> _errorSubject = new Subject<string>();
         private readonly Subject<int> _bufferingSubject = new Subject<int>();
         private IDisposable _playerEventSubscription;
