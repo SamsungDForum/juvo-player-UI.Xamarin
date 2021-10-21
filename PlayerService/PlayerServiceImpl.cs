@@ -34,6 +34,7 @@ namespace PlayerService
     public class PlayerServiceImpl : IPlayerService
     {
         private readonly AsyncContextThread _playerThread = new AsyncContextThread();
+        private const int ReplayBufferSize = 1;
 
         private Window _window;
         private IPlayer _player;
@@ -60,7 +61,7 @@ namespace PlayerService
 
         public string CurrentCueText => null;
 
-        private readonly ReplaySubject<PlayerState> _playerStateSubject = new ReplaySubject<PlayerState>(1);
+        private readonly ReplaySubject<PlayerState> _playerStateSubject = new ReplaySubject<PlayerState>(ReplayBufferSize);
         private readonly Subject<string> _errorSubject = new Subject<string>();
         private readonly Subject<int> _bufferingSubject = new Subject<int>();
         private IDisposable _playerEventSubscription;
