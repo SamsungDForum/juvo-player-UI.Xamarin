@@ -181,6 +181,12 @@ namespace XamarinPlayer.Views
 
         private void KeyEventHandler(string e)
         {
+            using (UI.Common.Logger.Log.Scope(e))
+                KeyHandler(e);
+        }
+
+        private void KeyHandler(string e)
+        {
             // Prevents key handling & focus change in Show().
             // Consider adding a call Focus(Focusable Object) where focus would be set in one place
             // and error status could be handled.
