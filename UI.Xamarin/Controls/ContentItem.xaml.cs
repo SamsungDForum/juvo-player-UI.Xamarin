@@ -35,7 +35,6 @@ namespace XamarinPlayer.Tizen.TV.Controls
         private static readonly SKColor FocusedColor = new SKColor(234, 234, 234);
         private static readonly SKColor UnfocusedColor = new SKColor(32, 32, 32);
 
-        //private readonly ILogger _logger = LoggerManager.GetInstance().GetLogger("JuvoPlayer");
         private SKBitmapRefCounted _contentBitmap;
         private SubSkBitmap _previewBitmap;
         private readonly SKPaint _paint = new SKPaint {IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 3};
