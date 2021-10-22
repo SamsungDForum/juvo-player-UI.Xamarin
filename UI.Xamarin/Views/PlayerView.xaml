@@ -100,10 +100,10 @@
                         </Picker.Items>
                         <Picker.SelectedIndex>0</Picker.SelectedIndex>
                     </Picker>
-                    <Label Grid.Row="3" Grid.Column="0"
-                           Text="Subtitles" TextColor="White" HorizontalOptions="Start"
+                    <Label IsEnabled="False" Grid.Row="3" Grid.Column="0"
+                           Text="Subtitles" TextColor="DimGray" HorizontalOptions="Start"
                            VerticalOptions="Center" />
-                    <Picker Grid.Row="3" Grid.Column="1" x:Name="Subtitles" WidthRequest="400"
+                    <Picker IsEnabled="False" BackgroundColor="DimGray" Grid.Row="3" Grid.Column="1" x:Name="Subtitles" WidthRequest="400"
                             ItemsSource="{Binding Subtitle.Source}"
                             SelectedIndex="{Binding SubtitleSelectedIndex}"
                             ItemDisplayBinding="{Binding Description}">
