@@ -16,7 +16,6 @@
  */
 
 using System.Threading.Tasks;
-using JuvoLogger;
 using Xamarin.Forms;
 using XamarinPlayer.Tizen.TV.Services;
 using XamarinPlayer.Tizen.TV.ViewModels;
@@ -30,8 +29,6 @@ namespace XamarinPlayer.Tizen.TV
         private bool _isInForeground;
         private static NavigationPage AppMainPage { get; set; }
         private static ContentListPage ContentPage { get; set; }
-
-        private static readonly ILogger Logger = LoggerManager.GetInstance().GetLogger("JuvoPlayer");
 
         public App()
         {
@@ -54,25 +51,29 @@ namespace XamarinPlayer.Tizen.TV
 
         protected override void OnSleep()
         {
-            Logger.Info("");
-            if (AppMainPage.CurrentPage is ISuspendable suspendable)
-                suspendable.Suspend();
-            _isInForeground = false;
+            using (UI.Common.Logger.Log.Scope())
+            {
+                if (AppMainPage.CurrentPage is ISuspendable suspendable)
+                    suspendable.Suspend();
+                _isInForeground = false;
+            }
         }
 
         protected override void OnResume()
         {
-            Logger.Info("");
-            if (AppMainPage.CurrentPage is ISuspendable suspendable)
-                suspendable.Resume();
-            _isInForeground = true;
+            using (UI.Common.Logger.Log.Scope())
+            {
+                if (AppMainPage.CurrentPage is ISuspendable suspendable)
+                    suspendable.Resume();
+                _isInForeground = true;
 
-            if (_deepLinkUrl == null)
-                return;
+                if (_deepLinkUrl == null)
+                    return;
 #pragma warning disable 4014
-            LoadUrlImpl(_deepLinkUrl);
+                LoadUrlImpl(_deepLinkUrl);
 #pragma warning restore 4014
-            _deepLinkUrl = null;
+                _deepLinkUrl = null;
+            }
         }
 
         public Task LoadUrl(string url)
@@ -89,19 +90,21 @@ namespace XamarinPlayer.Tizen.TV
 
         private static async Task LoadUrlImpl(string url)
         {
-            Logger.Info("");
-            while (true)
+            using (UI.Common.Logger.Log.Scope())
             {
-                if (AppMainPage.CurrentPage is IContentPayloadHandler handler && await handler.HandleUrl(url))
-                    return;
-                var page = await AppMainPage.PopAsync();
-                if (page == null)
+                while (true)
                 {
-                    await (new DialogService()).ShowError(
-                        "Could not find content with url: " + url + ". Returning to the main page.",
-                        "Could not find content. ", "OK", null);
-                    await AppMainPage.PushAsync(ContentPage);
-                    return;
+                    if (AppMainPage.CurrentPage is IContentPayloadHandler handler && await handler.HandleUrl(url))
+                        return;
+                    var page = await AppMainPage.PopAsync();
+                    if (page == null)
+                    {
+                        await (new DialogService()).ShowError(
+                            "Could not find content with url: " + url + ". Returning to the main page.",
+                            "Could not find content. ", "OK", null);
+                        await AppMainPage.PushAsync(ContentPage);
+                        return;
+                    }
                 }
             }
         }

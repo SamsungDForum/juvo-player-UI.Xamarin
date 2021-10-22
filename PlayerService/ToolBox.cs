@@ -15,7 +15,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -25,27 +24,8 @@ using UI.Common;
 
 namespace PlayerService
 {
-    internal static class LogToolBox
-    {
-        public static void LogEnter(
-            this ILogger logger,
-            string msg = "",
-            [CallerFilePath] string file = "",
-            [CallerMemberName] string method = "",
-            [CallerLineNumber] int line = 0) => logger.Debug("Enter() -> " + msg, file, method, line);
-
-        public static void LogExit(
-            this ILogger logger,
-            string msg = "",
-            [CallerFilePath] string file = "",
-            [CallerMemberName] string method = "",
-            [CallerLineNumber] int line = 0) => logger.Debug("Exit() <- " + msg, file, method, line);
-    }
-
     internal static class PlayerServiceToolBox
     {
-        public static readonly ILogger Logger = LoggerManager.GetInstance().GetLogger("JuvoPlayer");
-
         public static StreamDescription ToStreamDescription(this Format format, StreamType stream)
         {
             string description;
@@ -109,7 +89,7 @@ namespace PlayerService
             StreamGroup selectedContent = groups.FirstOrDefault(group => group.ContentType == type);
 
             if (selectedContent?.Streams.Count != selectedContent?.Streams.Select(stream => stream.Format.Id).Distinct().Count())
-                Logger.Warn("Stream Format IDs are not unique. Stream selection may not be accurate");
+                Log.Warn("Stream Format IDs are not unique. Stream selection may not be accurate");
 
             int index = selectedContent?.Streams.IndexOf(
                 selectedContent.Streams.FirstOrDefault(stream => stream.Format.Id == id)) ?? -1;

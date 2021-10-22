@@ -20,6 +20,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using ElmSharp;
+using static JuvoLogger.Tizen.TizenLoggerBuilderExtensions;
 using Tizen.Applications;
 using Tizen.System;
 using UI.Common;
@@ -27,7 +28,6 @@ using Xamarin.Forms;
 using Xamarin.Forms.GenGridView.Tizen;
 using Xamarin.Forms.Platform.Tizen;
 using XamarinPlayer.Tizen.TV.Services;
-using Log = Tizen.Log;
 using Size = ElmSharp.Size;
 
 namespace XamarinPlayer.Tizen.TV
@@ -126,7 +126,13 @@ namespace XamarinPlayer.Tizen.TV
         {
             AppDomain.CurrentDomain.UnhandledException += UnhandledException;
 
-            JuvoLogger.Tizen.TizenLoggerManager.Configure();
+            
+            JuvoLogger.Log.Logger = new JuvoLogger.LoggerBuilder()
+                .WithLevel(JuvoLogger.LogLevel.Debug)
+                .WithChannel("JuvoPlayer")
+                .WithTizenSink()
+                .Build();
+
             JuvoPlayer.Platforms.Tizen.PlatformTizen.Init();
 
             var app = new Program();
