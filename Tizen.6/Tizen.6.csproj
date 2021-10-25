@@ -12,6 +12,7 @@
     <ApplicationIcon />
     <OutputType>Exe</OutputType>
     <StartupObject />
+    <Configurations>Debug;Release;Debug HotReload</Configurations>
   </PropertyGroup>
 
   <ItemGroup>
