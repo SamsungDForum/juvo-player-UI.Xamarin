@@ -1,6 +1,6 @@
 /*!
  * https://github.com/SamsungDForum/JuvoPlayer
- * Copyright 2020, Samsung Electronics Co., Ltd
+ * Copyright 2021, Samsung Electronics Co., Ltd
  * Licensed under the MIT license
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
@@ -24,128 +24,179 @@ using Nito.AsyncEx;
 using UI.Common;
 using UI.Common.Logger;
 using System.Reactive.Subjects;
-using JuvoPlayer;
+using System.Threading;
 using JuvoPlayer.Common;
-using JuvoPlayer.Drms;
 using Window = ElmSharp.Window;
 
 namespace PlayerService
 {
     public class PlayerServiceImpl : IPlayerService
     {
-        private readonly AsyncContextThread _playerThread = new AsyncContextThread();
-        private const int ReplayBufferSize = 1;
+        private const int ReplayEventBufferSize = 1;
+
+        private readonly AsyncContextThread _playerThread;
+        private readonly ReplaySubject<string> _errorSubject;
+        private readonly ReplaySubject<PlayerState> _stateSubject;
+        private readonly ReplaySubject<int> _bufferingSubject;
+        private PlayerState _publishedState;
+        private PlayerHarness _player;
 
         private Window _window;
-        private IPlayer _player;
+        private ClipDefinition _currentClip;
+        private TimeSpan _suspendTimeIndex;
 
-        public TimeSpan Duration => _player?.Duration ?? TimeSpan.Zero;
-        public TimeSpan CurrentPosition => _player?.Position ?? TimeSpan.Zero;
-        public bool IsSeekingSupported => true;
-
-        public PlayerState State
+        private void PublishPlayerState()
         {
-            get
+            using (Log.Scope($"Current: {_publishedState} -> Next: {_publishedState = _player.State}"))
+                _stateSubject.OnNext(_publishedState);
+        }
+        
+        private void OnEvent(JuvoPlayer.Common.IEvent ev)
+        {
+            using (Log.Scope(ev.ToString()))
             {
+                switch (ev)
+                {
+                    case EosEvent _:
+                        Log.Info($"PlayerState: {State}@[{CurrentPosition} -> {Duration}]");
+                        _ = Stop();
+                        break;
+
+                    case BufferingEvent buf:
+                        Log.Info($"IsBuffering: {buf.IsBuffering}");
+                        _bufferingSubject?.OnNext(buf.IsBuffering ? 0 : 100);
+                        break;
+
+                    case ExceptionEvent ex:
+                        var errMsg = $"{ex.Exception.Message} {ex.Exception.InnerException?.Message}";
+                        Log.Error(errMsg);
+                        _errorSubject.OnNext(errMsg);
+                        break;
+                }
+            }
+        }
+
+        private static async Task<PlayerHarness> CreateAndPrepare(Window window, ClipDefinition clip, Action<IEvent> handler, TimeSpan timeIndex=default)
+        {
+            using (Log.Scope(clip.Type+" "+clip.Title))
+            {
+                PlayerHarness player = default;
                 try
                 {
-                    return _player?.State ?? PlayerState.None;
+                    player = await PlayerHarness.Create(
+                        new JuvoPlayer.Platforms.Tizen.ElmSharpWindow(window),
+                        clip.Url,
+                        clip.DRMDatas?.FirstOrDefault());
+
+                    player.EventHandler += handler;
+                    await player.Prepare(timeIndex);
+                    return player;
                 }
-                catch (Exception e)
+                catch (Exception)
+                    when (player != default)
                 {
-                    Log.Error(e);
+                    player.EventHandler -= handler;
+                    player.Dispose();
                     throw;
                 }
             }
         }
 
-        public string CurrentCueText => null;
+        private static readonly WaitCallback CompleteStateSubjectCb = state =>
+        {
+            using (Log.Scope())
+            {
+                // On _stateSubject completion, Xamarin UI starts a cascade of closures and shutdowns.
+                ((PlayerServiceImpl) state)._stateSubject.OnCompleted();
+            }
+        };
 
-        private readonly ReplaySubject<PlayerState> _playerStateSubject = new ReplaySubject<PlayerState>(ReplayBufferSize);
-        private readonly Subject<string> _errorSubject = new Subject<string>();
-        private readonly Subject<int> _bufferingSubject = new Subject<int>();
-        private IDisposable _playerEventSubscription;
+        public void Dispose()
+        {
+            async void SuspendAction() => await Suspend();
 
-        private ClipDefinition _currentClip;
-        private TimeSpan _suspendTimeIndex;
+            using (Log.Scope())
+            {
+                new Task(SuspendAction).RunSynchronously();
+                
+                _errorSubject.OnCompleted();
+                // _stateSubject is completed in Stop().
+                _bufferingSubject.OnCompleted();
 
+                _errorSubject.Dispose();
+                _stateSubject.Dispose();
+                _bufferingSubject.Dispose();
+            }
+        }
+
+        public PlayerServiceImpl()
+        {
+            using (Log.Scope())
+            {
+                _playerThread = new AsyncContextThread();
+                _errorSubject = new ReplaySubject<string>(ReplayEventBufferSize);
+                _stateSubject = new ReplaySubject<PlayerState>(ReplayEventBufferSize);
+                _bufferingSubject = new ReplaySubject<int>(ReplayEventBufferSize);
+            }
+        }
+
+        public TimeSpan Duration => _player?.Duration??default;
+        public TimeSpan CurrentPosition => _player?.CurrentPosition??default;
+        public bool IsSeekingSupported => _player?.IsSeekingSupported??false;
+        public PlayerState State => _publishedState;
+        public string CurrentCueText => string.Empty;
+        
         public async Task Pause()
         {
             using (Log.Scope())
             {
-                await await ThreadJob(async () => await _player.Pause());
+                await await _playerThread.ThreadJob(_player.Pause).ReportException(_errorSubject.OnNext);
+                PublishPlayerState();
             }
         }
 
         public async Task SeekTo(TimeSpan to)
         {
-            using (Log.Scope())
-            {
-                await await ThreadJob(async () => await _player.Seek(to));
-            }
+            using(Log.Scope())
+                await await _playerThread.ThreadJob(()=>_player.SeekTo(to)).ReportException(_errorSubject.OnNext);
         }
 
         public async Task ChangeActiveStream(StreamDescription streamDescription)
         {
-            using (Log.Scope())
-            {
-
-                await await ThreadJob(async () =>
-                {
-                    var selected = _player.GetStreamGroups().SelectStream(
-                        streamDescription.StreamType.ToContentType(),
-                        streamDescription.Id.ToString());
-
-                    if (selected.selector == null)
-                    {
-                        Log.Warn(
-                            $"Stream index not found {streamDescription.StreamType} {streamDescription.Description}");
-                        return;
-                    }
-
-                    var (newGroups, newSelectors) = _player.GetSelectedStreamGroups().UpdateSelection(selected);
-
-                    Log.Info(
-                        $"Using {selected.selector.GetType()} for {streamDescription.StreamType} {streamDescription.Description}");
-
-                    await _player.SetStreamGroups(newGroups, newSelectors);
-                });
-            }
-            
+            using(Log.Scope(streamDescription.ToString()))
+                await await _playerThread.ThreadJob(()=>_player.SetActiveTrack(streamDescription)).ReportException(_errorSubject.OnNext);
         }
 
         public void DeactivateStream(StreamType streamType)
         {
-            throw new NotImplementedException();
+            using(Log.Scope(streamType.ToString()))
+                throw new NotImplementedException();
         }
 
         public async Task<List<StreamDescription>> GetStreamsDescription(StreamType streamType)
         {
-            using (Log.Scope())
+            using (Log.Scope(streamType.ToString()))
             {
-
-                var result = await ThreadJob(() =>
-                    _player.GetStreamGroups().GetStreamDescriptionsFromStreamType(streamType));
-
-                return result.ToList();
+                var allTracks = await await _playerThread.ThreadJob(_player.GetAvailableTracks)
+                    .ReportException(_errorSubject.OnNext);
+                
+                return allTracks.Where(entry => entry.StreamType == streamType).DumpStreamDescriptions(streamType.ToString()).ToList();
             }
         }
 
         public async Task SetSource(ClipDefinition clip)
         {
-            using (Log.Scope(clip.Url))
+            using (Log.Scope())
             {
-                await await ThreadJob(async () =>
-                {
-                    IPlayer player = BuildDashPlayer(clip);
-                    _playerEventSubscription = player.OnEvent().Subscribe(async e => await OnEvent(e));
+                _currentClip = clip;
 
-                    await player.Prepare();
-                    _player = player;
-                    _currentClip = clip;
+                // Late assign started player. Xamarin UI is overly eager peeking at clip info.
+                // If that happens prior to start completion... they'll be shroom clouds!
+                _player = await await _playerThread
+                    .ThreadJob(async () => await CreateAndPrepare(_window,clip,OnEvent))
+                    .ReportException(_errorSubject.OnNext);
 
-                    _playerStateSubject.OnNext(PlayerState.Ready);
-                });
+                PublishPlayerState();
             }
         }
 
@@ -153,228 +204,80 @@ namespace PlayerService
         {
             using (Log.Scope())
             {
-
-                await ThreadJob(() =>
-                {
-                    PlayerState current = _player.State;
-                    switch (current)
-                    {
-                        case PlayerState.Playing:
-                            _player.Pause();
-                            _playerStateSubject.OnNext(PlayerState.Paused);
-                            break;
-
-                        case PlayerState.Ready:
-                        case PlayerState.Paused:
-                            _player.Play();
-                            _playerStateSubject.OnNext(PlayerState.Playing);
-                            break;
-
-                        default:
-                            Log.Warn($"Cannot play/pause in state: {current}");
-                            break;
-                    }
-                });
-
+                await await _playerThread.ThreadJob(_player.Play).ReportException(_errorSubject.OnNext);
+                PublishPlayerState();
             }
         }
 
-        public async Task Stop()
+        public Task Stop()
         {
             using (Log.Scope())
             {
+                // Escape from calling context.
+                ThreadPool.UnsafeQueueUserWorkItem(CompleteStateSubjectCb,this);
 
-                // Terminate by closing state subject. Single player termination path via Dispose. Suspend excluded.
-                await ThreadJob(() => _playerStateSubject.OnCompleted());
-
+                return Task.CompletedTask;
             }
         }
 
         public async Task Suspend()
         {
-            using (Log.Scope())
+            using (Log.Scope(_player == default?"No player":string.Empty))
             {
-                await await ThreadJob(async () =>
-                {
-                    _suspendTimeIndex = _player.Position ?? TimeSpan.Zero;
-                    await TerminatePlayer();
+                if (_player == default)
+                    return;
 
-                    Log.Info($"Suspended {_suspendTimeIndex}@{_currentClip.Url}");
-                });
+                _suspendTimeIndex = CurrentPosition;
+                Log.Info($"Suspend time index {_suspendTimeIndex}");
+
+                await _playerThread.ThreadJob(_player.Dispose).ReportException(_errorSubject.OnNext);
+                
+                _player = default;
             }
         }
 
         public async Task Resume()
         {
-            using (Log.Scope())
+            using (Log.Scope(_player != default?"Unexpected player":string.Empty))
             {
-
-                await await ThreadJob(async () =>
-                {
-                    IPlayer player = BuildDashPlayer(_currentClip, new Configuration {StartTime = _suspendTimeIndex});
-                    _playerEventSubscription = player.OnEvent().Subscribe(async e => await OnEvent(e));
-
-                    await player.Prepare();
-                    player.Play();
-                    _player = player;
-                    // Can be expanded to restore track selection / playback state (Paused/Playing)
-
-                    Log.Info($"Resumed {_suspendTimeIndex}@{_currentClip.Url}");
-                });
-
+                _player = await await _playerThread.ThreadJob(
+                    async () =>
+                    {
+                        var player = await CreateAndPrepare(_window, _currentClip, OnEvent, _suspendTimeIndex);
+                        await player.Play();
+                        return player;
+                    }).ReportException(_errorSubject.OnNext);
             }
         }
 
         public IObservable<PlayerState> StateChanged()
         {
-            return _playerStateSubject
-                .Publish()
-                .RefCount();
+            using (Log.Scope())
+                return _stateSubject
+                    .Publish()
+                    .RefCount();
         }
 
         public IObservable<string> PlaybackError()
         {
-            return _errorSubject
-                .Publish()
-                .RefCount();
+            using(Log.Scope())
+                return _errorSubject
+                    .Publish()
+                    .RefCount();
         }
 
         public IObservable<int> BufferingProgress()
         {
-            return _bufferingSubject
-                .Publish()
-                .RefCount();
+            using (Log.Scope())
+                return _bufferingSubject
+                    .Publish()
+                    .RefCount();
         }
 
         public void SetWindow(Window window)
         {
-            _window = window;
-        }
-
-        private IPlayer BuildDashPlayer(ClipDefinition clip, Configuration configuration = default)
-        {
-            DashPlayerBuilder builder = new DashPlayerBuilder()
-                .SetWindow(new JuvoPlayer.Platforms.Tizen.ElmSharpWindow(_window))
-                .SetMpdUri(clip.Url)
-                .SetConfiguration(configuration);
-
-            DrmDescription drmInfo = clip.DRMDatas?.FirstOrDefault();
-            if (drmInfo != null)
-            {
-                builder = builder
-                    .SetKeySystem(SchemeToKeySystem(drmInfo.Scheme))
-                    .SetDrmSessionHandler(new YoutubeDrmSessionHandler(
-                        drmInfo.LicenceUrl,
-                        drmInfo.KeyRequestProperties));
-            }
-
-            return builder.Build();
-
-            string SchemeToKeySystem(in string scheme)
-            {
-                switch (scheme)
-                {
-                    case "playready":
-                        return "com.microsoft.playready";
-                    case "widevine":
-                        return "com.widevine.alpha";
-                    default:
-                        return scheme;
-                }
-            }
-        }
-
-        private async Task TerminatePlayer()
-        {
-            using (Log.Scope())
-            {
-
-                _playerEventSubscription?.Dispose();
-
-                if (_player != null)
-                {
-                    Log.Info("Disposing player");
-                    IPlayer current = _player;
-                    _player = null;
-
-                    try
-                    {
-                        await current.DisposeAsync();
-                    }
-                    catch (Exception e)
-                    {
-                        Log.Warn($"Ignoring exception: {e}");
-                    }
-                }
-
-            }
-        }
-
-        private async Task OnEvent(IEvent ev)
-        {
-            using (Log.Scope(ev.ToString()))
-            {
-                switch (ev)
-                {
-                    case EosEvent _:
-                        await ThreadJob(() => _playerStateSubject.OnCompleted());
-                        break;
-
-                    case BufferingEvent buf:
-                        bool buffering = buf.IsBuffering;
-                        _playerStateSubject.OnNext(buffering ? PlayerState.Paused : PlayerState.Playing);
-                        _bufferingSubject.OnNext(buffering ? 0 : 100);
-                        break;
-                }
-            }
-        }
-
-        private Task<TResult> ThreadJob<TResult>(Func<TResult> threadFunc) =>
-            _playerThread.Factory.StartNew(() => InvokeFunction(threadFunc));
-
-        private Task ThreadJob(Action threadAction) =>
-            _playerThread.Factory.StartNew(() => InvokeAction(threadAction));
-
-        private TResult InvokeFunction<TResult>(Func<TResult> threadFunction)
-        {
-            try
-            {
-                return threadFunction();
-            }
-            catch (Exception e)
-            {
-                _errorSubject.OnNext($"{e.GetType()} {e.Message}");
-            }
-
-            return default;
-        }
-
-        private void InvokeAction(Action threadAction)
-        {
-            try
-            {
-                threadAction();
-            }
-            catch (Exception e)
-            {
-                _errorSubject.OnNext($"{e.GetType()} {e.Message}");
-            }
-        }
-
-        public void Dispose()
-        {
-            using (Log.Scope())
-            {
-                ThreadJob(async () => await TerminatePlayer());
-                _playerThread.Join();
-
-                _errorSubject.OnCompleted();
-                _errorSubject.Dispose();
-                _bufferingSubject.OnCompleted();
-                _bufferingSubject.Dispose();
-                _playerStateSubject.Dispose();
-            }
+            using (Log.Scope(window.ToString()))
+                _window = window;
         }
     }
 }
-
