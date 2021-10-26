@@ -6,6 +6,10 @@
     <SignAssembly>false</SignAssembly>
     <LangVersion>7.3</LangVersion>
     <RootNamespace />
+    <Configurations>Debug;Release;Debug HotReload</Configurations>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug HotReload|tizen50|AnyCPU'">
+    <DefineConstants>TRACE;USE_HOTRELOAD</DefineConstants>
   </PropertyGroup>
 
 

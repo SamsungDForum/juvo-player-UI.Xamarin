@@ -32,7 +32,7 @@ namespace XamarinPlayer.Tizen.TV
 
         public App()
         {
-#if DEBUG
+#if USE_HOTRELOAD
             HotReloader.Current.Run(this);
 #endif
             MainPage = new NavigationPage();
