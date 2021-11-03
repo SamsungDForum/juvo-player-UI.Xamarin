@@ -189,7 +189,7 @@ namespace PlayerService
             DrmDescription drmInfo = default,
             Configuration configuration = default)
         {
-            using (Log.Scope(url))
+            using (Log.Scope($"{configuration.StartTime ?? TimeSpan.Zero}@{url}"))
             {
                 var harness = new PlayerHarness();
                 harness._player = await BuildDashPlayer(window, url, drmInfo, configuration);
@@ -197,15 +197,12 @@ namespace PlayerService
             }
         }
 
-        public async Task Prepare(TimeSpan timeIndex = default)
+        public async Task Prepare()
         {
-            using (Log.Scope(timeIndex.ToString()))
+            using (Log.Scope())
             {
                 SubscribePlayerEvents();
-
                 await PrepareWithCancellation();
-                if (timeIndex != default)
-                    await SeekTo(timeIndex);
             }
         }
 
@@ -237,7 +234,7 @@ namespace PlayerService
             {
                 try
                 {
-                    return Task.FromResult(_player.GetSelectedStreamGroups().ToStreamDescription());
+                    return Task.FromResult(_player.GetSelectedStreamGroups().ToStreamDescriptions());
                 }
                 catch (Exception e)
                 {

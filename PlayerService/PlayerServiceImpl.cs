@@ -50,7 +50,7 @@ namespace PlayerService
             using (Log.Scope($"Current: {_publishedState} -> Next: {_publishedState = _player.State}"))
                 _stateSubject.OnNext(_publishedState);
         }
-        
+
         private void OnEvent(JuvoPlayer.Common.IEvent ev)
         {
             using (Log.Scope(ev.ToString()))
@@ -76,9 +76,9 @@ namespace PlayerService
             }
         }
 
-        private static async Task<PlayerHarness> CreateAndPrepare(Window window, ClipDefinition clip, Action<IEvent> handler, TimeSpan timeIndex=default)
+        private static async Task<PlayerHarness> CreateAndPrepare(Window window, ClipDefinition clip, Action<IEvent> handler, TimeSpan timeIndex = default)
         {
-            using (Log.Scope(clip.Type+" "+clip.Title))
+            using (Log.Scope(clip.Type + " " + clip.Title))
             {
                 PlayerHarness player = default;
                 try
@@ -86,10 +86,11 @@ namespace PlayerService
                     player = await PlayerHarness.Create(
                         new JuvoPlayer.Platforms.Tizen.ElmSharpWindow(window),
                         clip.Url,
-                        clip.DRMDatas?.FirstOrDefault());
+                        clip.DRMDatas?.FirstOrDefault(),
+                        new Configuration { StartTime = timeIndex });
 
                     player.EventHandler += handler;
-                    await player.Prepare(timeIndex);
+                    await player.Prepare();
                     return player;
                 }
                 catch (Exception)
@@ -107,9 +108,15 @@ namespace PlayerService
             using (Log.Scope())
             {
                 // On _stateSubject completion, Xamarin UI starts a cascade of closures and shutdowns.
-                ((PlayerServiceImpl) state)._stateSubject.OnCompleted();
+                ((PlayerServiceImpl)state)._stateSubject.OnCompleted();
             }
         };
+
+        private void TerminateThread()
+        {
+            using (Log.Scope())
+                _playerThread.Join();
+        }
 
         public void Dispose()
         {
@@ -118,14 +125,18 @@ namespace PlayerService
             using (Log.Scope())
             {
                 new Task(SuspendAction).RunSynchronously();
-                
+
+                Log.Info("Completing subjects");
                 _errorSubject.OnCompleted();
                 // _stateSubject is completed in Stop().
                 _bufferingSubject.OnCompleted();
 
+                Log.Info("Disposing subjects");
                 _errorSubject.Dispose();
                 _stateSubject.Dispose();
                 _bufferingSubject.Dispose();
+
+                new Task(TerminateThread).RunSynchronously();
             }
         }
 
@@ -140,12 +151,12 @@ namespace PlayerService
             }
         }
 
-        public TimeSpan Duration => _player?.Duration??default;
-        public TimeSpan CurrentPosition => _player?.CurrentPosition??default;
-        public bool IsSeekingSupported => _player?.IsSeekingSupported??false;
+        public TimeSpan Duration => _player?.Duration ?? default;
+        public TimeSpan CurrentPosition => _player?.CurrentPosition ?? default;
+        public bool IsSeekingSupported => _player?.IsSeekingSupported ?? false;
         public PlayerState State => _publishedState;
         public string CurrentCueText => string.Empty;
-        
+
         public async Task Pause()
         {
             using (Log.Scope())
@@ -157,19 +168,19 @@ namespace PlayerService
 
         public async Task SeekTo(TimeSpan to)
         {
-            using(Log.Scope())
-                await await _playerThread.ThreadJob(()=>_player.SeekTo(to)).ReportException(_errorSubject.OnNext);
+            using (Log.Scope())
+                await await _playerThread.ThreadJob(() => _player.SeekTo(to)).ReportException(_errorSubject.OnNext);
         }
 
         public async Task ChangeActiveStream(StreamDescription streamDescription)
         {
-            using(Log.Scope(streamDescription.ToString()))
-                await await _playerThread.ThreadJob(()=>_player.SetActiveTrack(streamDescription)).ReportException(_errorSubject.OnNext);
+            using (Log.Scope(streamDescription.ToString()))
+                await await _playerThread.ThreadJob(() => _player.SetActiveTrack(streamDescription)).ReportException(_errorSubject.OnNext);
         }
 
         public void DeactivateStream(StreamType streamType)
         {
-            using(Log.Scope(streamType.ToString()))
+            using (Log.Scope(streamType.ToString()))
                 throw new NotImplementedException();
         }
 
@@ -179,7 +190,7 @@ namespace PlayerService
             {
                 var allTracks = await await _playerThread.ThreadJob(_player.GetAvailableTracks)
                     .ReportException(_errorSubject.OnNext);
-                
+
                 return allTracks.Where(entry => entry.StreamType == streamType).DumpStreamDescriptions(streamType.ToString()).ToList();
             }
         }
@@ -193,7 +204,7 @@ namespace PlayerService
                 // Late assign started player. Xamarin UI is overly eager peeking at clip info.
                 // If that happens prior to start completion... they'll be shroom clouds!
                 _player = await await _playerThread
-                    .ThreadJob(async () => await CreateAndPrepare(_window,clip,OnEvent))
+                    .ThreadJob(async () => await CreateAndPrepare(_window, clip, OnEvent))
                     .ReportException(_errorSubject.OnNext);
 
                 PublishPlayerState();
@@ -214,7 +225,7 @@ namespace PlayerService
             using (Log.Scope())
             {
                 // Escape from calling context.
-                ThreadPool.UnsafeQueueUserWorkItem(CompleteStateSubjectCb,this);
+                ThreadPool.UnsafeQueueUserWorkItem(CompleteStateSubjectCb, this);
 
                 return Task.CompletedTask;
             }
@@ -222,7 +233,7 @@ namespace PlayerService
 
         public async Task Suspend()
         {
-            using (Log.Scope(_player == default?"No player":string.Empty))
+            using (Log.Scope(_player == default ? "No player" : string.Empty))
             {
                 if (_player == default)
                     return;
@@ -231,14 +242,14 @@ namespace PlayerService
                 Log.Info($"Suspend time index {_suspendTimeIndex}");
 
                 await _playerThread.ThreadJob(_player.Dispose).ReportException(_errorSubject.OnNext);
-                
+
                 _player = default;
             }
         }
 
         public async Task Resume()
         {
-            using (Log.Scope(_player != default?"Unexpected player":string.Empty))
+            using (Log.Scope(_player != default ? "Unexpected player" : string.Empty))
             {
                 _player = await await _playerThread.ThreadJob(
                     async () =>
@@ -260,7 +271,7 @@ namespace PlayerService
 
         public IObservable<string> PlaybackError()
         {
-            using(Log.Scope())
+            using (Log.Scope())
                 return _errorSubject
                     .Publish()
                     .RefCount();

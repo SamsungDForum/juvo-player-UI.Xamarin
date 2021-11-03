@@ -46,7 +46,7 @@ namespace PlayerService
             return description.Trim();
         }
 
-        public static IEnumerable<StreamDescription> ToStreamDescription(this (StreamGroup[] groups, IStreamSelector[] selectors) grouping)
+        public static IEnumerable<StreamDescription> ToStreamDescriptions(this (StreamGroup[] groups, IStreamSelector[] selectors) grouping)
         {
             var descriptions = new List<StreamDescription>();
             var (groups, selectors) = grouping;
