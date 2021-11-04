@@ -4,7 +4,7 @@ JuvoPlayer UI.Xamarin
 ## Introduction
 
 Xamarin UI for
-[JuvoPlayer component](https://github.com/SamsungDForum/JuvoPlayer/releases "JuvoPlayer 2.x releases") derived from an integrated
+[JuvoPlayer component]( https://github.com/SamsungDForum/JuvoPlayer/tree/master-v2 "JuvoPlayer 2.x releases") derived from an integrated
 [JuvoPlayer application](https://github.com/SamsungDForum/JuvoPlayer "JuvoPlayer application")
 
 ## Build requirements
