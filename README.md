@@ -8,10 +8,13 @@ Xamarin UI for
 
 ## Prerequisites
 - [Tizen Studio](https://developer.tizen.org/development/tizen-studio/download)
-- [Tizen Extensions for Visual Studio Family](https://developer.tizen.org/development/tizen-extensions-visual-studio-family) Needed for Visual Studio family IDEs only.
+- [Tizen Extensions for Visual Studio Family](https://developer.tizen.org/development/tizen-extensions-visual-studio-family)
+
+  Needed for Visual Studio family IDEs only.
 
 - [TV Extension for Tizen SDK](https://developer.samsung.com/smarttv/develop/tools/tv-extension/archive.html)
-  Version depends on target device.
+
+  Version depends on target device in use.
 
 
 ## Build requirements
@@ -24,27 +27,26 @@ tizen.myget.org  | https://tizen.myget.org/F/dotnet/api/v2
 
 ## Build configurations
 
-### Debug
-Debug build configuration
+- ```Debug```
 
-### Debug HotReload
-Debug build configuration with
-[Xamarin Forms hot reload](https://docs.microsoft.com/en-us/xamarin/xamarin-forms/xaml/hot-reload)
-enabled.
+  Debug build configuration
 
-### Release
-Release configuration
+- ```Debug HotReload```
 
-## Application logging
-dlog debug channels:
+  Debug build configuration with [Xamarin Forms hot reload](https://docs.microsoft.com/en-us/xamarin/xamarin-forms/xaml/hot-reload) enabled.
 
-JuvoUI - application logs.
+- ```Release```
 
-JuvoPlayer - JuvoPlayer component logs.
+  Release configuration
 
-## Start up Projects
-Start up projects differ for Tizen 5/Tizen 6 devices. Such approach was chosen to overcome limitations of Tizen Tools for Visual Studio, which silently ignores
-target framework selection in multi targeted project.
+## dlog debug channels:
+
+- ```JuvoUI``` - application logs.
+- ```JuvoPlayer``` - JuvoPlayer component logs.
+
+## Startup Projects
+Startup projects differ for Tizen 5/Tizen 6 devices. Such approach was chosen to overcome limitations of Tizen Tools for Visual Studio, which silently ignores
+target framework selection in multitargeted project.
 
 ## Features
 - Streaming and DRM support as specified in [JuvoPlayer component](https://github.com/SamsungDForum/JuvoPlayer/releases "JuvoPlayer 2.x component").
