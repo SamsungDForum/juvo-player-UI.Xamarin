@@ -1,6 +1,6 @@
 ﻿/*!
  * https://github.com/SamsungDForum/JuvoPlayer
- * Copyright 2020, Samsung Electronics Co., Ltd
+ * Copyright 2021, Samsung Electronics Co., Ltd
  * Licensed under the MIT license
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
@@ -16,101 +16,154 @@
  */
 
 using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using JuvoLogger;
 using JuvoPlayer.Common;
 using UI.Common;
+using UI.Common.Logger;
 
 namespace PlayerService
 {
     internal static class PlayerServiceToolBox
     {
-        public static StreamDescription ToStreamDescription(this Format format, StreamType stream)
-        {
-            string description;
+        public const int ThroughputSelection = -1;
+        public const string ThroughputDescription = "Auto";
+        public const string ThroughputId = @"\ō͡≡o˞̶";
 
-            switch (stream)
+        public static string ToStringDescription(this Format format)
+        {
+            string description = string.Empty;
+
+            if (!string.IsNullOrEmpty(format.Language))
+                description += format.Language;
+
+            if (format.Width.HasValue && format.Height.HasValue)
+                description += " " + format.Width + "x" + format.Height;
+            else if (format.ChannelCount.HasValue)
+                description += " " + format.ChannelCount + " Ch.";
+
+            if (format.Bitrate.HasValue)
+                description += " " + (int)(format.Bitrate / 1000) + " kbps";
+
+            return description.Trim();
+        }
+
+        public static IEnumerable<StreamDescription> ToStreamDescriptions(this (StreamGroup[] groups, IStreamSelector[] selectors) grouping)
+        {
+            var descriptions = new List<StreamDescription>();
+            var (groups, selectors) = grouping;
+            var groupCount = groups.Length;
+
+            for (var g = 0; g < groupCount; g++)
             {
-                case StreamType.Video:
-                    description = $"{format.Width}x{format.Height} {format.Label}";
-                    if (string.IsNullOrWhiteSpace(description))
-                        description = "Video " + format.Id;
+                var streams = groups[g].Streams;
+                var streamCount = streams.Count;
 
-                    return new StreamDescription
-                    {
-                        Default = format.RoleFlags.HasFlag(RoleFlags.Main),
-                        Description = description,
-                        Id = format.Id,
-                        StreamType = stream
-                    };
-
-                case StreamType.Audio:
-                    description = $"{format.Language} {format.ChannelCount} {format.Label}";
-                    if (string.IsNullOrWhiteSpace(description))
-                        description = "Audio " + format.Id;
-
-                    return new StreamDescription
-                    {
-                        Default = format.RoleFlags.HasFlag(RoleFlags.Main),
-                        Description = description,
-                        Id = format.Id,
-                        StreamType = stream
-                    };
-
-                default:
-                    description = format.Label;
-                    if (string.IsNullOrWhiteSpace(description))
-                        description = $"{stream} {format.Id}";
-
-                    return new StreamDescription
-                    {
-                        Default = format.RoleFlags.HasFlag(RoleFlags.Main),
-                        Description = description,
-                        Id = format.Id,
-                        StreamType = stream
-                    };
-
-            }
-        }
-
-        public static IEnumerable<StreamDescription> GetStreamDescriptionsFromStreamType(this StreamGroup[] groups,
-            StreamType type)
-        {
-            ContentType content = type.ToContentType();
-            return groups
-                .Where(group => group.ContentType == content)
-                .SelectMany(group => group.Streams)
-                .Select(format => format.Format.ToStreamDescription(type));
-        }
-
-        public static (StreamGroup group, IStreamSelector selector) SelectStream(this StreamGroup[] groups, ContentType type, string id)
-        {
-            StreamGroup selectedContent = groups.FirstOrDefault(group => group.ContentType == type);
-
-            if (selectedContent?.Streams.Count != selectedContent?.Streams.Select(stream => stream.Format.Id).Distinct().Count())
-                Log.Warn("Stream Format IDs are not unique. Stream selection may not be accurate");
-
-            int index = selectedContent?.Streams.IndexOf(
-                selectedContent.Streams.FirstOrDefault(stream => stream.Format.Id == id)) ?? -1;
-
-            return (selectedContent, index == -1 ? null : new FixedStreamSelector(index));
-        }
-
-        public static (StreamGroup[], IStreamSelector[]) UpdateSelection(
-            this (StreamGroup[] groups, IStreamSelector[] selectors) currentSelection,
-            (StreamGroup group, IStreamSelector selector) newSelection)
-        {
-            for (int i = 0; i < currentSelection.groups.Length; i++)
-            {
-                if (currentSelection.groups[i].ContentType == newSelection.group.ContentType)
+                if (streamCount > 0)
                 {
-                    currentSelection.groups[i] = newSelection.group;
-                    currentSelection.selectors[i] = newSelection.selector;
+                    var groupStreamType = groups[g].ContentType.ToStreamType();
+
+                    for (var f = 0; f < streamCount; f++)
+                    {
+                        descriptions.Add(new StreamDescription
+                        {
+                            Default = false,
+                            FormatIndex = f,
+                            GroupIndex = g,
+                            Description = streams[f].Format.ToStringDescription(),
+                            Id = streams[f].Format.Id,
+                            StreamType = groupStreamType
+                        });
+                    }
+
+                    switch (groupStreamType)
+                    {
+                        case StreamType.Video when streamCount > 1:
+                            // Add 'Auto' option if multiple video streams exist.
+                            descriptions.Add(new StreamDescription
+                            {
+                                // Mark as default if selector is throughput.
+                                Default = selectors[g] is ThroughputHistoryStreamSelector,
+                                Description = ThroughputDescription,
+                                FormatIndex = ThroughputSelection,
+                                GroupIndex = g,
+                                Id = ThroughputId,
+                                StreamType = StreamType.Video
+                            });
+                            break;
+
+                        case StreamType.Video:
+                            // One video stream.
+                            descriptions[0].Default = true;
+                            break;
+
+                        case StreamType.Audio:
+                            // Default audio = audio.streamcount - 1
+                            descriptions[streamCount - 1].Default = true;
+                            break;
+                    }
                 }
             }
 
-            return currentSelection;
+            return descriptions;
+        }
+
+        public static IStreamSelector GetSelector(this StreamDescription track)
+        {
+            bool isAuto;
+            using (Log.Scope($"Is auto selection: {isAuto = track.FormatIndex == ThroughputSelection}"))
+                return isAuto
+                    ? (IStreamSelector)new ThroughputHistoryStreamSelector(new ThroughputHistory())
+                    : (IStreamSelector)new FixedStreamSelector(track.FormatIndex);
+        }
+
+        public static IEnumerable<StreamGroup> DumpStreamGroups(this IEnumerable<StreamGroup> groups)
+        {
+            using (Log.Scope())
+            {
+                foreach (var group in groups)
+                {
+                    Log.Debug($"Group: {group.ContentType} Entries: {group.Streams.Count}");
+                    group.Streams.DumpStreamInfo();
+                }
+
+                return groups;
+            }
+        }
+
+        public static IEnumerable<StreamDescription> DumpStreamDescriptions(this IEnumerable<StreamDescription> descriptions, string message = default)
+        {
+            using (Log.Scope(message))
+            {
+                foreach (var description in descriptions)
+                    Log.Debug($"Stream: {description}");
+                return descriptions;
+            }
+        }
+
+        public static void DumpFormat(this Format format)
+        {
+            Log.Debug($"Id: {format.Id}");
+            Log.Debug($"\tLabel: '{format.Label}'");
+            Log.Debug($"\tSelection Flags: '{format.SelectionFlags}'");
+            Log.Debug($"\tRole Flags: '{format.RoleFlags}'");
+            Log.Debug($"\tBitrate: '{format.Bitrate}'");
+            Log.Debug($"\tCodecs: '{format.Codecs}'");
+            Log.Debug($"\tContainer MimeType: '{format.ContainerMimeType}'");
+            Log.Debug($"\tSample MimeType: '{format.SampleMimeType}'");
+            Log.Debug($"\tWxH: '{format.Width}x{format.Height}'");
+            Log.Debug($"\tFrame Rate:'{format.FrameRate}'");
+            Log.Debug($"\tSample Rate: '{format.SampleRate}'");
+            Log.Debug($"\tChannel Count: '{format.ChannelCount}'");
+            Log.Debug($"\tSample Rate: '{format.SampleRate}'");
+            Log.Debug($"\tLanguage: '{format.Language}'");
+            Log.Debug($"\tAccessibility Channel: '{format.AccessibilityChannel}'");
+        }
+
+        public static IEnumerable<StreamInfo> DumpStreamInfo(this IEnumerable<StreamInfo> streamInfos)
+        {
+            foreach (var info in streamInfos)
+                info.Format.DumpFormat();
+
+            return streamInfos;
         }
     }
 }
